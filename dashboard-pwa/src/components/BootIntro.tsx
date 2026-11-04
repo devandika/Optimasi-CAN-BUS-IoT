@@ -1,36 +1,26 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
-import {
-  Cpu,
-  Wifi,
-  Activity,
-  CheckCircle2,
-  Radio,
-  Zap,
-  Gauge,
-  Sparkles,
-} from "lucide-react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { CheckCircle2, Cpu, Wifi, Activity, Terminal, ShieldCheck } from "lucide-react";
 
 interface BootIntroProps {
   onComplete?: () => void;
 }
 
-interface ChannelStatus {
-  id: string;
-  name: string;
-  unit: string;
+interface SensorCheck {
+  code: string;
+  label: string;
   nominal: string;
-  checkAt: number; // Persentase ketika sensor ini dinyatakan OK
+  threshold: number; // progress percentage at which this sensor marks OK
 }
 
-const SENSOR_CHANNELS: ChannelStatus[] = [
-  { id: "rpm", name: "Engine RPM", unit: "RPM", nominal: "< 2200", checkAt: 25 },
-  { id: "load", name: "Engine Load", unit: "%", nominal: "< 95%", checkAt: 40 },
-  { id: "temp", name: "Coolant Temp", unit: "°C", nominal: "71 - 104", checkAt: 55 },
-  { id: "map", name: "Boost Press", unit: "kPa", nominal: "< 165", checkAt: 70 },
-  { id: "spd", name: "Vehicle Speed", unit: "km/h", nominal: "< 39", checkAt: 82 },
-  { id: "volt", name: "System Volt", unit: "V", nominal: "23.0 - 28.5", checkAt: 92 },
+const SENSORS: SensorCheck[] = [
+  { code: "RPM", label: "Engine Speed", nominal: "< 2200 RPM", threshold: 18 },
+  { code: "LOAD", label: "Engine Load", nominal: "< 95%", threshold: 34 },
+  { code: "TEMP", label: "Coolant Temp", nominal: "71 - 104°C", threshold: 50 },
+  { code: "MAP", label: "Boost Pressure", nominal: "< 165 kPa", threshold: 66 },
+  { code: "SPD", label: "Ground Speed", nominal: "< 39 km/h", threshold: 80 },
+  { code: "VOLT", label: "24V Battery", nominal: "23.0 - 28.5V", threshold: 92 },
 ];
 
 export const BootIntro: React.FC<BootIntroProps> = ({ onComplete }) => {
@@ -38,291 +28,313 @@ export const BootIntro: React.FC<BootIntroProps> = ({ onComplete }) => {
   const [isClosing, setIsClosing] = useState(false);
   const [progress, setProgress] = useState(0);
 
+  const handleDismiss = useCallback(() => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setVisible(false);
+      onComplete?.();
+    }, 320);
+  }, [onComplete]);
+
+  // Keyboard shortcut listener: ESC untuk lewati langsung
   useEffect(() => {
-    // Jalankan timer animasi halus ~60 FPS dari 0 hingga 100%
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
+        handleDismiss();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleDismiss]);
+
+  // Animasi progress 60 FPS dengan kurva akselerasi-deselerasi presisi tinggi
+  useEffect(() => {
     const startTime = performance.now();
-    const duration = 2400; // 2.4 detik total intro yang mulus
-    let animId: number;
+    const duration = 2100; // 2.1 detik: punchy, profesional, tidak membuang waktu
+    let frameId: number;
 
     const tick = (now: number) => {
       const elapsed = now - startTime;
-      const rawProgress = Math.min(1, elapsed / duration);
+      const t = Math.min(1, elapsed / duration);
 
-      // Kurva Easing Cubic yang lembut (lembut di awal, mengalir, lembut di akhir)
-      const ease =
-        rawProgress < 0.5
-          ? 4 * rawProgress * rawProgress * rawProgress
-          : 1 - Math.pow(-2 * rawProgress + 2, 3) / 2;
-
+      // Custom smooth easing: cepat dan responsif di awal, presisi melambat di akhir
+      // Easing curve: Quartic ease-out untuk feel instrumen digital OEM
+      const ease = 1 - Math.pow(1 - t, 4);
       const currentPct = Math.round(ease * 100);
+
       setProgress(currentPct);
 
-      if (rawProgress < 1) {
-        animId = requestAnimationFrame(tick);
+      if (t < 1) {
+        frameId = requestAnimationFrame(tick);
       } else {
-        // Selesai 100%: tunggu sejenak agar efek READY terlihat lalu fade out
+        // Tahan 250ms saat 100% untuk kepuasan visual "SYSTEM READY"
         setTimeout(() => {
           setIsClosing(true);
           setTimeout(() => {
             setVisible(false);
             onComplete?.();
-          }, 450);
-        }, 400);
+          }, 320);
+        }, 260);
       }
     };
 
-    animId = requestAnimationFrame(tick);
-
-    return () => {
-      cancelAnimationFrame(animId);
-    };
+    frameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameId);
   }, [onComplete]);
 
-  // Radius dan kalkulasi arc SVG untuk lingkaran HUD di tengah
-  const circleRadius = 58;
-  const strokeWidth = 5;
-  const circumference = 2 * Math.PI * circleRadius;
-  const strokeDashoffset = circumference - (progress / 100) * circumference;
-
-  const currentStage = useMemo(() => {
-    if (progress < 30) {
+  // Teks diagnostik teknis seiring berjalannya POST (Power-On Self Test)
+  const diagStatus = useMemo(() => {
+    if (progress < 25) {
       return {
-        step: 1,
-        title: "INITIALIZING CAN FIELDBUS",
-        subtitle: "Memverifikasi Bus CAN 2.0B 500 kbps & Node 1 ECU...",
+        step: "01/04",
+        subsystem: "CAN 2.0B TRANSCEIVER",
+        log: "Verifying SN65HVD230 differential bus @ 500 kbps",
         icon: Cpu,
         color: "text-amber-400",
       };
-    } else if (progress < 70) {
+    } else if (progress < 55) {
       return {
-        step: 2,
-        title: "SYNCHRONIZING IOT GATEWAY",
-        subtitle: "Sinkronisasi Serial UART2 ESP 2 & EMQX Cloud MQTT...",
-        icon: Wifi,
+        step: "02/04",
+        subsystem: "SAE J1939 PROTOCOL STACK",
+        log: "Mapping Engine PGNs: 61444 (EEC1) • 61443 (EEC2) • 65262 (ET1)",
+        icon: Activity,
         color: "text-cat-yellow",
+      };
+    } else if (progress < 85) {
+      return {
+        step: "03/04",
+        subsystem: "ESP32 IOT GATEWAY & MQTT",
+        log: "Syncing UART2 115200 baud link & EMQX Cloud broker duplex",
+        icon: Wifi,
+        color: "text-sky-400",
       };
     } else if (progress < 100) {
       return {
-        step: 3,
-        title: "CALIBRATING 6-CH ENGINE SENSORS",
-        subtitle: "Memetakan parameter SAE J1939 & rentang operasional...",
-        icon: Activity,
-        color: "text-amber-400",
+        step: "04/04",
+        subsystem: "TELEMETRY MATRIX CALIBRATION",
+        log: "Calibrating 6-channel powertrain limits and threshold alarms",
+        icon: Terminal,
+        color: "text-amber-300",
       };
     }
     return {
-      step: 4,
-      title: "ALL SYSTEMS OPERATIONAL",
-      subtitle: "Simulator CAN-Bus Caterpillar 950L Siap Beroperasi",
+      step: "READY",
+      subsystem: "SYSTEM OPERATIONAL",
+      log: "All powertrain subsystems nominal • Display cluster online",
       icon: CheckCircle2,
       color: "text-emerald-400",
     };
   }, [progress]);
 
-  const StageIcon = currentStage.icon;
+  const DiagIcon = diagStatus.icon;
 
   if (!visible) return null;
 
   return (
     <aside
-      aria-label="Memuat Sistem Telemetri Caterpillar 950L"
-      className={`fixed inset-0 z-50 flex items-center justify-center p-4 select-none overflow-hidden transition-all duration-400 ${
+      aria-label="Caterpillar 950L Instrument Cluster Initialization"
+      onClick={handleDismiss}
+      className={`fixed inset-0 z-50 flex flex-col justify-between p-6 sm:p-10 select-none cursor-pointer overflow-hidden transition-all duration-300 ${
         isClosing
-          ? "opacity-0 scale-[1.02] pointer-events-none backdrop-blur-none"
+          ? "opacity-0 scale-[0.99] blur-[2px] pointer-events-none"
           : "opacity-100 scale-100 pointer-events-auto"
       }`}
       style={{
-        backgroundColor: "rgba(11, 16, 27, 0.94)",
-        backdropFilter: "blur(18px)",
+        backgroundColor: "#070A10",
+        backgroundImage: `
+          radial-gradient(circle at 50% 20%, rgba(255, 205, 0, 0.08) 0%, transparent 60%),
+          radial-gradient(circle at 80% 80%, rgba(14, 165, 233, 0.04) 0%, transparent 50%),
+          linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px)
+        `,
+        backgroundSize: "100% 100%, 100% 100%, 48px 48px, 48px 48px",
       }}
     >
-      {/* Efek Ambient Glow Halus di Background (Khas Alat Berat) */}
-      <div className="absolute w-[500px] h-[500px] rounded-full bg-amber-500/10 blur-[130px] pointer-events-none -top-20 -left-20 animate-pulse" />
-      <div className="absolute w-[450px] h-[450px] rounded-full bg-cyan-500/10 blur-[130px] pointer-events-none -bottom-20 -right-20" />
-
-      {/* Grid Pattern Industri Transparan */}
-      <div
-        className="absolute inset-0 pointer-events-none opacity-[0.04]"
-        style={{
-          backgroundImage:
-            "linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)",
-          backgroundSize: "32px 32px",
-        }}
-      />
-
-      {/* Card Utama Glassmorphism yang Selaras dengan Dashboard */}
-      <div className="relative w-full max-w-xl glass-card rounded-2xl p-6 sm:p-8 border border-[var(--glass-border)] shadow-2xl flex flex-col items-center text-center overflow-hidden">
-        {/* Tombol Lewati Cepat di Pojok Kanan Atas */}
-        <button
-          type="button"
-          onClick={() => {
-            setIsClosing(true);
-            setTimeout(() => {
-              setVisible(false);
-              onComplete?.();
-            }, 300);
-          }}
-          className="absolute top-4 right-4 text-xs font-semibold px-2.5 py-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/10 transition-colors"
-        >
-          Lewati Esc
-        </button>
-
-        {/* 1. Badge Caterpillar Industrial Header */}
-        <div className="flex items-center gap-2 mb-2">
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-cat-yellow text-xs font-black tracking-widest uppercase">
-            <span className="w-2 h-2 rounded-full bg-cat-yellow animate-ping" />
-            <span>CAT 950L</span>
+      {/* ─── 1. TOP BAR: STATUS INSTRUMEN & TOMBOL LEWATI ─── */}
+      <header className="w-full flex items-center justify-between text-xs font-mono tracking-wider">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 px-2.5 py-1 rounded bg-white/[0.04] border border-white/10 text-slate-300">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                progress === 100
+                  ? "bg-emerald-400 shadow-[0_0_8px_#34D399]"
+                  : "bg-cat-yellow animate-pulse shadow-[0_0_8px_#FFCD00]"
+              }`}
+            />
+            <span className="font-semibold text-white">CAT 950L POST</span>
           </div>
-          <span className="text-xs font-mono text-[var(--text-muted)] tracking-wider">
-            HEAVY EQUIPMENT TELEMETRY
+          <span className="hidden sm:inline text-slate-500 font-medium">
+            SAE J1939 HEAVY-DUTY TELEMETRY
           </span>
         </div>
 
-        {/* 2. Judul Utama Presisi */}
-        <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)] tracking-tight mb-1">
-          CAN BUS SIMULATOR
-        </h1>
-        <p className="text-xs sm:text-sm text-[var(--text-secondary)] font-medium mb-6">
-          SAE J1939 Engine Cluster · FreeRTOS Dual-Core · MQTT Gateway
-        </p>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDismiss();
+          }}
+          className="group flex items-center gap-2 px-3 py-1 rounded bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 text-slate-400 hover:text-white transition-all text-xs font-mono"
+        >
+          <span>LEWATI</span>
+          <span className="text-[10px] px-1 py-0.5 rounded bg-white/10 text-slate-300 group-hover:text-white">
+            ESC
+          </span>
+        </button>
+      </header>
 
-        {/* 3. Circular Orbital Telemetry Dial (Menyerupai Gauge Dashboard) */}
-        <div className="relative w-44 h-44 my-1 flex items-center justify-center">
-          {/* Cincin Luar Berputar Lambat (Tekstur Dial Teknis) */}
-          <svg className="absolute inset-0 w-full h-full animate-[spin_18s_linear_infinite] opacity-25">
-            <circle
-              cx="88"
-              cy="88"
-              r="76"
+      {/* ─── 2. HERO CENTER: CATERPILLAR WORDMARK & CALIBRATION HUD ─── */}
+      <main className="w-full max-w-2xl mx-auto flex flex-col items-center text-center my-auto py-6">
+        {/* Authentic Caterpillar Emblem SVG */}
+        <div className="relative mb-6">
+          <div className="relative flex items-center justify-center">
+            <svg
+              className="w-36 h-20 sm:w-44 sm:h-24 drop-shadow-[0_4px_24px_rgba(255,205,0,0.25)]"
+              viewBox="0 0 160 80"
               fill="none"
-              stroke="#FFCD00"
-              strokeWidth="1.5"
-              strokeDasharray="4 8"
-            />
-          </svg>
-
-          {/* Cincin Dial SVG Utama */}
-          <svg className="w-full h-full -rotate-90">
-            {/* Track Latar Belakang */}
-            <circle
-              cx="88"
-              cy="88"
-              r={circleRadius}
-              fill="none"
-              stroke="var(--track-bg)"
-              strokeWidth={strokeWidth}
-            />
-            {/* Busur Progres Dinamis (Gradien Halus) */}
-            <circle
-              cx="88"
-              cy="88"
-              r={circleRadius}
-              fill="none"
-              stroke={progress === 100 ? "#10B981" : "#FFCD00"}
-              strokeWidth={strokeWidth}
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-              strokeLinecap="round"
-              className="transition-all duration-75 ease-out"
-            />
-          </svg>
-
-          {/* Isi Konten di Dalam Lingkaran Dial */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span
-              className={`font-display text-4xl font-extrabold tabular-nums tracking-tight transition-colors duration-200 ${
-                progress === 100 ? "text-emerald-400" : "text-[var(--text-primary)]"
-              }`}
+              xmlns="http://www.w3.org/2000/svg"
             >
-              {progress}
-              <span className="text-lg text-[var(--text-muted)] font-normal ml-0.5">
-                %
+              {/* Authentic Cat Yellow Triangle positioned under the 'A' */}
+              <polygon points="56,72 104,72 80,32" fill="#FFCD00" />
+              {/* Heavy Bold Industrial CAT Typography */}
+              <text
+                x="80"
+                y="63"
+                textAnchor="middle"
+                fill="#FFFFFF"
+                fontFamily="system-ui, -apple-system, sans-serif"
+                fontWeight="900"
+                fontSize="44"
+                letterSpacing="4"
+              >
+                CAT
+              </text>
+            </svg>
+          </div>
+
+          <div className="flex items-center justify-center gap-2 mt-1">
+            <span className="text-xl sm:text-2xl font-black tracking-tight text-white font-display">
+              950L
+            </span>
+            <span className="w-1.5 h-1.5 rounded-full bg-cat-yellow" />
+            <span className="text-xs font-semibold tracking-[0.2em] uppercase text-slate-400 font-mono">
+              WHEEL LOADER
+            </span>
+          </div>
+        </div>
+
+        {/* Large Crisp Tabular Percentage Indicator */}
+        <div className="flex items-baseline justify-center gap-1.5 my-2">
+          <span className="text-5xl sm:text-6xl font-extrabold font-display tabular-nums tracking-tight text-white drop-shadow-[0_2px_12px_rgba(255,255,255,0.15)]">
+            {progress}
+          </span>
+          <span className="text-2xl font-bold text-cat-yellow font-display">%</span>
+        </div>
+
+        {/* Precision Cockpit Laser Calibration Bar with Micro-ticks */}
+        <div className="w-full max-w-lg mt-3 mb-6">
+          {/* Graduation Scale Markers */}
+          <div className="flex justify-between text-[10px] font-mono text-slate-500 mb-1.5 px-0.5">
+            <span>0%</span>
+            <span>25%</span>
+            <span>50%</span>
+            <span>75%</span>
+            <span>100%</span>
+          </div>
+
+          {/* Track Bar with Subtle Inner Glow */}
+          <div className="relative w-full h-2 rounded-full bg-white/[0.06] border border-white/10 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-75 ease-out ${
+                progress === 100
+                  ? "bg-gradient-to-r from-emerald-500 to-teal-400 shadow-[0_0_16px_rgba(52,211,153,0.6)]"
+                  : "bg-gradient-to-r from-amber-500 via-cat-yellow to-yellow-300 shadow-[0_0_16px_rgba(255,205,0,0.6)]"
+              }`}
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+
+          {/* Micro-tick Ruler Beneath */}
+          <div className="flex justify-between w-full px-1 mt-1 opacity-25">
+            {Array.from({ length: 21 }).map((_, i) => (
+              <span
+                key={i}
+                className={`w-[1px] bg-white ${i % 5 === 0 ? "h-2" : "h-1"}`}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Telemetry POST Diagnostic Ticker */}
+        <div className="w-full max-w-lg flex items-center justify-between px-4 py-2.5 rounded-lg bg-white/[0.03] border border-white/10 text-left">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <DiagIcon className={`w-4 h-4 shrink-0 ${diagStatus.color}`} />
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-white/10 text-slate-300">
+                  {diagStatus.step}
+                </span>
+                <span className={`text-xs font-bold tracking-wide font-mono ${diagStatus.color}`}>
+                  {diagStatus.subsystem}
+                </span>
+              </div>
+              <p className="text-[11px] font-mono text-slate-400 truncate mt-0.5">
+                {diagStatus.log}
+              </p>
+            </div>
+          </div>
+
+          <span className="shrink-0 text-[11px] font-mono font-bold text-slate-300 ml-3">
+            {progress === 100 ? (
+              <span className="text-emerald-400 flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5" /> OK
               </span>
-            </span>
-
-            <span
-              className={`text-[10px] font-mono tracking-widest uppercase font-bold mt-0.5 flex items-center gap-1 ${
-                progress === 100 ? "text-emerald-400" : "text-amber-400"
-              }`}
-            >
-              {progress === 100 ? (
-                <>
-                  <Sparkles className="w-3 h-3" /> ONLINE
-                </>
-              ) : (
-                "SYNCING"
-              )}
-            </span>
-          </div>
+            ) : (
+              <span className="text-cat-yellow animate-pulse">TESTING</span>
+            )}
+          </span>
         </div>
+      </main>
 
-        {/* 4. Bar Status Interaktif Aktif */}
-        <div className="w-full mt-3 mb-5 px-2">
-          <div className="flex items-center justify-center gap-2 mb-1.5">
-            <StageIcon className={`w-4 h-4 ${currentStage.color} animate-pulse`} />
-            <h2 className={`text-xs sm:text-sm font-bold tracking-wide ${currentStage.color}`}>
-              {currentStage.title}
-            </h2>
-          </div>
-          <p className="text-xs text-[var(--text-muted)] line-clamp-1">
-            {currentStage.subtitle}
-          </p>
-        </div>
-
-        {/* 5. Matrix Status 6-Channel Engine Sensor (Menyala Berurutan Sesuai Dashboard) */}
-        <div className="w-full grid grid-cols-3 sm:grid-cols-6 gap-2 mb-5">
-          {SENSOR_CHANNELS.map((ch) => {
-            const isReady = progress >= ch.checkAt;
+      {/* ─── 3. BOTTOM BAR: 6-CHANNEL SENSOR TAPE (MINIMALIST HUD) ─── */}
+      <footer className="w-full max-w-4xl mx-auto border-t border-white/10 pt-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+          {SENSORS.map((s) => {
+            const isPassed = progress >= s.threshold;
             return (
               <div
-                key={ch.id}
-                className={`flex flex-col items-center p-2 rounded-lg border transition-all duration-300 ${
-                  isReady
-                    ? "bg-amber-500/10 border-amber-500/35 text-[var(--text-primary)]"
-                    : "bg-black/20 border-white/5 text-[var(--text-muted)] opacity-50"
+                key={s.code}
+                className={`flex items-center justify-between px-2.5 py-1.5 rounded border text-[11px] font-mono transition-all duration-200 ${
+                  isPassed
+                    ? "bg-white/[0.04] border-cat-yellow/30 text-white"
+                    : "bg-transparent border-white/5 text-slate-600"
                 }`}
               >
-                <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider mb-0.5">
+                <div className="flex items-center gap-1.5">
                   <span
-                    className={`w-1.5 h-1.5 rounded-full ${
-                      isReady ? "bg-cat-yellow" : "bg-slate-600"
+                    className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                      isPassed ? "bg-cat-yellow shadow-[0_0_6px_#FFCD00]" : "bg-slate-700"
                     }`}
                   />
-                  <span>{ch.id.toUpperCase()}</span>
+                  <span className="font-bold">{s.code}</span>
                 </div>
-                <span className="text-[11px] font-mono font-semibold text-[var(--text-secondary)]">
-                  {isReady ? "OK" : "..."}
+                <span
+                  className={`text-[10px] font-semibold ${
+                    isPassed ? "text-emerald-400" : "text-slate-600"
+                  }`}
+                >
+                  {isPassed ? "NOMINAL" : "INIT"}
                 </span>
               </div>
             );
           })}
         </div>
 
-        {/* 6. Garis Progres Tipis Presisi di Bagian Bawah */}
-        <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden border border-white/10 relative">
-          <div
-            className={`h-full rounded-full transition-all duration-100 ease-out ${
-              progress === 100
-                ? "bg-gradient-to-r from-emerald-500 to-teal-400"
-                : "bg-gradient-to-r from-amber-500 to-cat-yellow shadow-[0_0_12px_rgba(255,205,0,0.5)]"
-            }`}
-            style={{ width: `${progress}%` }}
-          />
+        <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 mt-3 px-1">
+          <span>DUAL-NODE CAN-BUS SIMULATOR • ESP32 FREERTOS</span>
+          <span className="hidden sm:inline">KLIK DI MANA SAJA UNTUK MEMBUKA CLUSTER</span>
         </div>
-
-        {/* 7. Footer Keterangan Singkat */}
-        <div className="w-full flex items-center justify-between text-[11px] font-mono text-[var(--text-muted)] mt-3 px-1">
-          <span className="flex items-center gap-1.5">
-            <Radio className="w-3 h-3 text-cat-yellow" /> CAN 2.0B 29-bit
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Zap className="w-3 h-3 text-cyan-400" /> Dual-Core FreeRTOS
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Gauge className="w-3 h-3 text-emerald-400" /> EMQX MQTT QoS 1
-          </span>
-        </div>
-      </div>
+      </footer>
     </aside>
   );
 };
