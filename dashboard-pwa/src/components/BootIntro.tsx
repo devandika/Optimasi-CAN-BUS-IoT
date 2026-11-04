@@ -1,340 +1,272 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { CheckCircle2, Cpu, Wifi, Activity, Terminal, ShieldCheck } from "lucide-react";
+import React, { useEffect, useState, useRef } from "react";
 
 interface BootIntroProps {
   onComplete?: () => void;
 }
 
-interface SensorCheck {
-  code: string;
-  label: string;
-  nominal: string;
-  threshold: number; // progress percentage at which this sensor marks OK
-}
-
-const SENSORS: SensorCheck[] = [
-  { code: "RPM", label: "Engine Speed", nominal: "< 2200 RPM", threshold: 18 },
-  { code: "LOAD", label: "Engine Load", nominal: "< 95%", threshold: 34 },
-  { code: "TEMP", label: "Coolant Temp", nominal: "71 - 104°C", threshold: 50 },
-  { code: "MAP", label: "Boost Pressure", nominal: "< 165 kPa", threshold: 66 },
-  { code: "SPD", label: "Ground Speed", nominal: "< 39 km/h", threshold: 80 },
-  { code: "VOLT", label: "24V Battery", nominal: "23.0 - 28.5V", threshold: 92 },
-];
+/* ── Fasa animasi bertahap yang smooth & profesional ──
+   Setiap fasa muncul secara berurutan menggunakan CSS opacity + transform.
+   Tidak ada tombol lewati — layar ini singkat (3 detik) dan intentional. */
 
 export const BootIntro: React.FC<BootIntroProps> = ({ onComplete }) => {
-  const [visible, setVisible] = useState(true);
-  const [isClosing, setIsClosing] = useState(false);
+  const [phase, setPhase] = useState(0);
   const [progress, setProgress] = useState(0);
+  const [exiting, setExiting] = useState(false);
+  const [gone, setGone] = useState(false);
+  const rafRef = useRef<number>(0);
 
-  const handleDismiss = useCallback(() => {
-    setIsClosing(true);
-    setTimeout(() => {
-      setVisible(false);
-      onComplete?.();
-    }, 320);
-  }, [onComplete]);
-
-  // Keyboard shortcut listener: ESC untuk lewati langsung
+  /* ── Animasi progress 60 FPS ── */
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
-        handleDismiss();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleDismiss]);
-
-  // Animasi progress 60 FPS dengan kurva akselerasi-deselerasi presisi tinggi
-  useEffect(() => {
-    const startTime = performance.now();
-    const duration = 2100; // 2.1 detik: punchy, profesional, tidak membuang waktu
-    let frameId: number;
+    const t0 = performance.now();
+    const DURATION = 2600;
 
     const tick = (now: number) => {
-      const elapsed = now - startTime;
-      const t = Math.min(1, elapsed / duration);
-
-      // Custom smooth easing: cepat dan responsif di awal, presisi melambat di akhir
-      // Easing curve: Quartic ease-out untuk feel instrumen digital OEM
+      const elapsed = now - t0;
+      const t = Math.min(1, elapsed / DURATION);
+      /* Quartic ease-out: responsif di awal, presisi di akhir */
       const ease = 1 - Math.pow(1 - t, 4);
-      const currentPct = Math.round(ease * 100);
-
-      setProgress(currentPct);
+      setProgress(Math.round(ease * 100));
 
       if (t < 1) {
-        frameId = requestAnimationFrame(tick);
-      } else {
-        // Tahan 250ms saat 100% untuk kepuasan visual "SYSTEM READY"
-        setTimeout(() => {
-          setIsClosing(true);
-          setTimeout(() => {
-            setVisible(false);
-            onComplete?.();
-          }, 320);
-        }, 260);
+        rafRef.current = requestAnimationFrame(tick);
       }
     };
 
-    frameId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frameId);
-  }, [onComplete]);
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, []);
 
-  // Teks diagnostik teknis seiring berjalannya POST (Power-On Self Test)
-  const diagStatus = useMemo(() => {
-    if (progress < 25) {
-      return {
-        step: "01/04",
-        subsystem: "CAN 2.0B TRANSCEIVER",
-        log: "Verifying SN65HVD230 differential bus @ 500 kbps",
-        icon: Cpu,
-        color: "text-amber-400",
-      };
-    } else if (progress < 55) {
-      return {
-        step: "02/04",
-        subsystem: "SAE J1939 PROTOCOL STACK",
-        log: "Mapping Engine PGNs: 61444 (EEC1) • 61443 (EEC2) • 65262 (ET1)",
-        icon: Activity,
-        color: "text-cat-yellow",
-      };
-    } else if (progress < 85) {
-      return {
-        step: "03/04",
-        subsystem: "ESP32 IOT GATEWAY & MQTT",
-        log: "Syncing UART2 115200 baud link & EMQX Cloud broker duplex",
-        icon: Wifi,
-        color: "text-sky-400",
-      };
-    } else if (progress < 100) {
-      return {
-        step: "04/04",
-        subsystem: "TELEMETRY MATRIX CALIBRATION",
-        log: "Calibrating 6-channel powertrain limits and threshold alarms",
-        icon: Terminal,
-        color: "text-amber-300",
-      };
-    }
-    return {
-      step: "READY",
-      subsystem: "SYSTEM OPERATIONAL",
-      log: "All powertrain subsystems nominal • Display cluster online",
-      icon: CheckCircle2,
-      color: "text-emerald-400",
+  /* ── Tahapan visual reveal ── */
+  useEffect(() => {
+    const timers = [
+      setTimeout(() => setPhase(1), 100),   // Logo CAT muncul
+      setTimeout(() => setPhase(2), 500),   // Nama model + teks
+      setTimeout(() => setPhase(3), 800),   // Progress bar
+      setTimeout(() => setPhase(4), 1100),  // Sensor channels
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
+  /* ── Auto-exit setelah progress 100% ── */
+  useEffect(() => {
+    if (progress < 100) return;
+    const t1 = setTimeout(() => setExiting(true), 400);
+    const t2 = setTimeout(() => {
+      setGone(true);
+      onComplete?.();
+    }, 900);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
     };
-  }, [progress]);
+  }, [progress, onComplete]);
 
-  const DiagIcon = diagStatus.icon;
+  if (gone) return null;
 
-  if (!visible) return null;
+  /* ── SVG Gauge Arc (sama persis dengan GaugeCard) ── */
+  const CX = 100, CY = 98, R = 78, STROKE = 12;
+  const START_DEG = -125, SWEEP_DEG = 250;
+  const arcLen = 2 * Math.PI * R * (SWEEP_DEG / 360);
+  const filled = arcLen * (progress / 100);
+
+  function polar(deg: number) {
+    const rad = ((deg - 90) * Math.PI) / 180;
+    return { x: CX + R * Math.cos(rad), y: CY + R * Math.sin(rad) };
+  }
+
+  const s = polar(START_DEG);
+  const e = polar(START_DEG + SWEEP_DEG);
+  const arcPath = `M ${s.x.toFixed(2)} ${s.y.toFixed(2)} A ${R} ${R} 0 1 1 ${e.x.toFixed(2)} ${e.y.toFixed(2)}`;
+
+  /* ── Kelas transisi per-fasa ── */
+  const show = (p: number) =>
+    phase >= p
+      ? "opacity-100 translate-y-0 blur-0"
+      : "opacity-0 translate-y-3 blur-[2px]";
+
+  const sensors = ["RPM", "LOAD", "TEMP", "MAP", "SPD", "VOLT"] as const;
+  const sensorThresholds = [15, 30, 45, 60, 75, 90];
 
   return (
-    <aside
-      aria-label="Caterpillar 950L Instrument Cluster Initialization"
-      onClick={handleDismiss}
-      className={`fixed inset-0 z-50 flex flex-col justify-between p-6 sm:p-10 select-none cursor-pointer overflow-hidden transition-all duration-300 ${
-        isClosing
-          ? "opacity-0 scale-[0.99] blur-[2px] pointer-events-none"
-          : "opacity-100 scale-100 pointer-events-auto"
+    <div
+      aria-hidden
+      className={`fixed inset-0 z-50 flex items-center justify-center transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        exiting ? "opacity-0 scale-[1.02]" : "opacity-100 scale-100"
       }`}
-      style={{
-        backgroundColor: "#070A10",
-        backgroundImage: `
-          radial-gradient(circle at 50% 20%, rgba(255, 205, 0, 0.08) 0%, transparent 60%),
-          radial-gradient(circle at 80% 80%, rgba(14, 165, 233, 0.04) 0%, transparent 50%),
-          linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px)
-        `,
-        backgroundSize: "100% 100%, 100% 100%, 48px 48px, 48px 48px",
-      }}
+      style={{ backgroundColor: "#0B101B" }}
     >
-      {/* ─── 1. TOP BAR: STATUS INSTRUMEN & TOMBOL LEWATI ─── */}
-      <header className="w-full flex items-center justify-between text-xs font-mono tracking-wider">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-2.5 py-1 rounded bg-white/[0.04] border border-white/10 text-slate-300">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                progress === 100
-                  ? "bg-emerald-400 shadow-[0_0_8px_#34D399]"
-                  : "bg-cat-yellow animate-pulse shadow-[0_0_8px_#FFCD00]"
-              }`}
-            />
-            <span className="font-semibold text-white">CAT 950L POST</span>
-          </div>
-          <span className="hidden sm:inline text-slate-500 font-medium">
-            SAE J1939 HEAVY-DUTY TELEMETRY
-          </span>
-        </div>
+      {/* Ambient glow — persis seperti body di globals.css dark mode */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage: `
+            radial-gradient(circle at 12% 10%, rgba(255,205,0,0.07) 0%, transparent 45%),
+            radial-gradient(circle at 88% 15%, rgba(56,189,248,0.07) 0%, transparent 45%),
+            radial-gradient(circle at 50% 90%, rgba(16,185,129,0.05) 0%, transparent 50%)
+          `,
+        }}
+      />
 
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleDismiss();
-          }}
-          className="group flex items-center gap-2 px-3 py-1 rounded bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 text-slate-400 hover:text-white transition-all text-xs font-mono"
-        >
-          <span>LEWATI</span>
-          <span className="text-[10px] px-1 py-0.5 rounded bg-white/10 text-slate-300 group-hover:text-white">
-            ESC
-          </span>
-        </button>
-      </header>
+      <div className="relative z-10 flex flex-col items-center w-full max-w-md px-6 select-none">
 
-      {/* ─── 2. HERO CENTER: CATERPILLAR WORDMARK & CALIBRATION HUD ─── */}
-      <main className="w-full max-w-2xl mx-auto flex flex-col items-center text-center my-auto py-6">
-        {/* Authentic Caterpillar Emblem SVG */}
-        <div className="relative mb-6">
-          <div className="relative flex items-center justify-center">
+        {/* ─── 1. LOGO CAT ─── */}
+        <div className={`transition-all duration-700 ease-out ${show(1)} mb-8`}>
+          <div className="flex flex-col items-center">
+            {/* Segitiga CAT Yellow khas Caterpillar */}
             <svg
-              className="w-36 h-20 sm:w-44 sm:h-24 drop-shadow-[0_4px_24px_rgba(255,205,0,0.25)]"
-              viewBox="0 0 160 80"
+              viewBox="0 0 120 50"
+              className="w-28 sm:w-32 mb-2"
               fill="none"
-              xmlns="http://www.w3.org/2000/svg"
             >
-              {/* Authentic Cat Yellow Triangle positioned under the 'A' */}
-              <polygon points="56,72 104,72 80,32" fill="#FFCD00" />
-              {/* Heavy Bold Industrial CAT Typography */}
+              <polygon
+                points="38,46 82,46 60,14"
+                fill="#FFCD00"
+                opacity="0.9"
+              />
               <text
-                x="80"
-                y="63"
+                x="60"
+                y="42"
                 textAnchor="middle"
-                fill="#FFFFFF"
-                fontFamily="system-ui, -apple-system, sans-serif"
-                fontWeight="900"
-                fontSize="44"
-                letterSpacing="4"
+                fill="white"
+                fontFamily="'Outfit', system-ui, sans-serif"
+                fontWeight="800"
+                fontSize="32"
+                letterSpacing="3"
               >
                 CAT
               </text>
             </svg>
-          </div>
 
-          <div className="flex items-center justify-center gap-2 mt-1">
-            <span className="text-xl sm:text-2xl font-black tracking-tight text-white font-display">
-              950L
-            </span>
-            <span className="w-1.5 h-1.5 rounded-full bg-cat-yellow" />
-            <span className="text-xs font-semibold tracking-[0.2em] uppercase text-slate-400 font-mono">
-              WHEEL LOADER
-            </span>
+            <div className="flex items-center gap-2.5">
+              <span className="text-[28px] sm:text-[32px] font-extrabold tracking-tight text-white"
+                    style={{ fontFamily: "var(--font-display)" }}>
+                950L
+              </span>
+              <div className="w-[3px] h-5 rounded-full bg-[#FFCD00]" />
+              <span className="text-[11px] font-semibold tracking-[0.18em] text-slate-400 uppercase"
+                    style={{ fontFamily: "var(--font-sans)" }}>
+                Wheel Loader
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Large Crisp Tabular Percentage Indicator */}
-        <div className="flex items-baseline justify-center gap-1.5 my-2">
-          <span className="text-5xl sm:text-6xl font-extrabold font-display tabular-nums tracking-tight text-white drop-shadow-[0_2px_12px_rgba(255,255,255,0.15)]">
-            {progress}
-          </span>
-          <span className="text-2xl font-bold text-cat-yellow font-display">%</span>
+        {/* ─── 2. GAUGE ARC (reuse GaugeCard geometry) ─── */}
+        <div className={`transition-all duration-700 ease-out ${show(2)} w-52 h-44 relative mb-4`}>
+          <svg viewBox="0 0 200 170" className="w-full h-full">
+            {/* Track latar */}
+            <path
+              d={arcPath}
+              fill="none"
+              stroke="rgba(255,255,255,0.08)"
+              strokeWidth={STROKE}
+              strokeLinecap="round"
+            />
+
+            {/* Isi progress */}
+            <path
+              d={arcPath}
+              fill="none"
+              stroke={progress >= 100 ? "#10B981" : "#FFCD00"}
+              strokeWidth={STROKE}
+              strokeLinecap="round"
+              strokeDasharray={`${filled} ${arcLen}`}
+              style={{
+                transition: "stroke-dasharray 80ms linear, stroke 300ms ease-out",
+                filter: progress >= 100
+                  ? "drop-shadow(0 0 8px rgba(16,185,129,0.5))"
+                  : "drop-shadow(0 0 6px rgba(255,205,0,0.35))",
+              }}
+            />
+
+            {/* Angka persentase besar */}
+            <text
+              x={CX}
+              y={CY + 6}
+              textAnchor="middle"
+              fill="white"
+              fontSize="46"
+              fontWeight="700"
+              style={{
+                fontFamily: "var(--font-display)",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {progress}
+            </text>
+            <text
+              x={CX}
+              y={CY + 30}
+              textAnchor="middle"
+              fill={progress >= 100 ? "#10B981" : "#94A3B8"}
+              fontSize="13"
+              fontWeight="600"
+              style={{ fontFamily: "var(--font-sans)" }}
+            >
+              {progress >= 100 ? "SYSTEM READY" : "INITIALIZING"}
+            </text>
+
+            {/* Skala 0 / 100 di ujung busur */}
+            <text x={s.x} y={s.y + 20} textAnchor="middle" fontSize="11" fontWeight="600" fill="#475569">0</text>
+            <text x={e.x} y={e.y + 20} textAnchor="middle" fontSize="11" fontWeight="600" fill="#475569">100</text>
+          </svg>
         </div>
 
-        {/* Precision Cockpit Laser Calibration Bar with Micro-ticks */}
-        <div className="w-full max-w-lg mt-3 mb-6">
-          {/* Graduation Scale Markers */}
-          <div className="flex justify-between text-[10px] font-mono text-slate-500 mb-1.5 px-0.5">
-            <span>0%</span>
-            <span>25%</span>
-            <span>50%</span>
-            <span>75%</span>
-            <span>100%</span>
-          </div>
-
-          {/* Track Bar with Subtle Inner Glow */}
-          <div className="relative w-full h-2 rounded-full bg-white/[0.06] border border-white/10 overflow-hidden">
+        {/* ─── 3. PROGRESS BAR ─── */}
+        <div className={`transition-all duration-700 ease-out ${show(3)} w-full mb-6`}>
+          <div className="w-full h-[5px] rounded-full bg-white/[0.06] overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all duration-75 ease-out ${
-                progress === 100
-                  ? "bg-gradient-to-r from-emerald-500 to-teal-400 shadow-[0_0_16px_rgba(52,211,153,0.6)]"
-                  : "bg-gradient-to-r from-amber-500 via-cat-yellow to-yellow-300 shadow-[0_0_16px_rgba(255,205,0,0.6)]"
-              }`}
-              style={{ width: `${progress}%` }}
+              className="h-full rounded-full"
+              style={{
+                width: `${progress}%`,
+                background: progress >= 100
+                  ? "linear-gradient(90deg, #10B981, #14B8A6)"
+                  : "linear-gradient(90deg, #D97706, #FFCD00)",
+                boxShadow: progress >= 100
+                  ? "0 0 12px rgba(16,185,129,0.5)"
+                  : "0 0 12px rgba(255,205,0,0.4)",
+                transition: "width 80ms linear, background 300ms ease-out",
+              }}
             />
           </div>
 
-          {/* Micro-tick Ruler Beneath */}
-          <div className="flex justify-between w-full px-1 mt-1 opacity-25">
-            {Array.from({ length: 21 }).map((_, i) => (
-              <span
-                key={i}
-                className={`w-[1px] bg-white ${i % 5 === 0 ? "h-2" : "h-1"}`}
-              />
-            ))}
-          </div>
+          <p className="text-center text-[11px] font-medium tracking-wide mt-2.5"
+             style={{ color: "#64748B", fontFamily: "var(--font-sans)" }}>
+            CAN Bus Telemetry · SAE J1939 · MQTT Gateway
+          </p>
         </div>
 
-        {/* Telemetry POST Diagnostic Ticker */}
-        <div className="w-full max-w-lg flex items-center justify-between px-4 py-2.5 rounded-lg bg-white/[0.03] border border-white/10 text-left">
-          <div className="flex items-center gap-3 overflow-hidden">
-            <DiagIcon className={`w-4 h-4 shrink-0 ${diagStatus.color}`} />
-            <div className="flex flex-col min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-white/10 text-slate-300">
-                  {diagStatus.step}
-                </span>
-                <span className={`text-xs font-bold tracking-wide font-mono ${diagStatus.color}`}>
-                  {diagStatus.subsystem}
-                </span>
-              </div>
-              <p className="text-[11px] font-mono text-slate-400 truncate mt-0.5">
-                {diagStatus.log}
-              </p>
-            </div>
-          </div>
-
-          <span className="shrink-0 text-[11px] font-mono font-bold text-slate-300 ml-3">
-            {progress === 100 ? (
-              <span className="text-emerald-400 flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5" /> OK
-              </span>
-            ) : (
-              <span className="text-cat-yellow animate-pulse">TESTING</span>
-            )}
-          </span>
-        </div>
-      </main>
-
-      {/* ─── 3. BOTTOM BAR: 6-CHANNEL SENSOR TAPE (MINIMALIST HUD) ─── */}
-      <footer className="w-full max-w-4xl mx-auto border-t border-white/10 pt-4">
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
-          {SENSORS.map((s) => {
-            const isPassed = progress >= s.threshold;
-            return (
-              <div
-                key={s.code}
-                className={`flex items-center justify-between px-2.5 py-1.5 rounded border text-[11px] font-mono transition-all duration-200 ${
-                  isPassed
-                    ? "bg-white/[0.04] border-cat-yellow/30 text-white"
-                    : "bg-transparent border-white/5 text-slate-600"
-                }`}
-              >
-                <div className="flex items-center gap-1.5">
+        {/* ─── 4. SENSOR STATUS ROW ─── */}
+        <div className={`transition-all duration-700 ease-out ${show(4)} w-full`}>
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            {sensors.map((code, i) => {
+              const active = progress >= sensorThresholds[i];
+              return (
+                <div key={code} className="flex items-center gap-1.5">
                   <span
-                    className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                      isPassed ? "bg-cat-yellow shadow-[0_0_6px_#FFCD00]" : "bg-slate-700"
-                    }`}
+                    className="w-[6px] h-[6px] rounded-full transition-all duration-300"
+                    style={{
+                      backgroundColor: active ? "#FFCD00" : "rgba(255,255,255,0.12)",
+                      boxShadow: active ? "0 0 6px rgba(255,205,0,0.5)" : "none",
+                    }}
                   />
-                  <span className="font-bold">{s.code}</span>
+                  <span
+                    className="text-[11px] font-semibold tracking-wide transition-colors duration-300"
+                    style={{
+                      color: active ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.2)",
+                      fontFamily: "var(--font-display)",
+                    }}
+                  >
+                    {code}
+                  </span>
                 </div>
-                <span
-                  className={`text-[10px] font-semibold ${
-                    isPassed ? "text-emerald-400" : "text-slate-600"
-                  }`}
-                >
-                  {isPassed ? "NOMINAL" : "INIT"}
-                </span>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-
-        <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 mt-3 px-1">
-          <span>DUAL-NODE CAN-BUS SIMULATOR • ESP32 FREERTOS</span>
-          <span className="hidden sm:inline">KLIK DI MANA SAJA UNTUK MEMBUKA CLUSTER</span>
-        </div>
-      </footer>
-    </aside>
+      </div>
+    </div>
   );
 };
