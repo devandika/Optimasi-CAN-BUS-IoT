@@ -39,6 +39,27 @@ Proyek ini mempertahankan integritas kode lama sekaligus menyediakan implementas
 
 ---
 
+## 🚀 Panduan Deployment Vercel (Next.js PWA Dashboard)
+
+Repositori ini menggabungkan firmware mikrokontroler (Node 1, 2, 3) dan aplikasi web Next.js (`dashboard-pwa/`).
+Agar Vercel dapat mendeteksi dan melakukan build otomatis tanpa error `404 NOT FOUND`:
+
+1. Buka dashboard proyek di [Vercel](https://vercel.com).
+2. Masuk ke **Settings** $\rightarrow$ **General**.
+3. Pada bagian **Root Directory**, klik **Edit** dan isi dengan:
+   ```text
+   dashboard-pwa
+   ```
+4. Masuk ke menu **Environment Variables**, dan masukkan kredensial:
+   * `NEXT_PUBLIC_SUPABASE_URL`
+   * `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   * `SUPABASE_SERVICE_ROLE_KEY`
+   * `NEXT_PUBLIC_EMQX_BROKER_HOST` = `broker.emqx.io`
+   * `NEXT_PUBLIC_EMQX_BROKER_PORT` = `8084`
+5. Setiap kali terjadi `git push` ke branch `main`, Vercel akan **100% otomatis melakukan build dan deploy** versi terbaru!
+
+---
+
 ## 📊 Pemetaan Parameter SAE J1939 (Caterpillar 950L)
 
 | Parameter Mesin | PGN J1939 | SPN | Skala / Resolusi | Ambang Normal | Peringatan (Warning) | Bahaya (Critical Alarm) |
