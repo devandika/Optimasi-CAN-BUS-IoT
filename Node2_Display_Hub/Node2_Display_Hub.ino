@@ -142,7 +142,7 @@ uint8_t getTempState(int val, int cold_val, int warn_val, int alarm_val) {
 
 uint8_t getVoltState(float val) {
   if (val < 18.0f || val >= 32.0f) return 3;
-  if (val < 23.0f || val >= 29.5f) return 2;
+  if (val <= 22.9f || val > 28.5f) return 2;
   return 1;
 }
 
@@ -199,7 +199,7 @@ void drawVoltStairBar(int x, int y, float val) {
     uint16_t seg_color;
 
     if (seg_val < 18.0f || seg_val >= 32.0f) seg_color = TFT_RED;
-    else if (seg_val < 23.0f || seg_val >= 29.5f) seg_color = TFT_ORANGE;
+    else if (seg_val <= 22.9f || seg_val > 28.5f) seg_color = TFT_ORANGE;
     else seg_color = TFT_GREEN;
 
     if (i < filled_segments) tft.fillRect(x + (i * 9), y_offset, 7, seg_height, seg_color);

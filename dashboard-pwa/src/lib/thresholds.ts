@@ -68,15 +68,17 @@ export const PARAM_LIMITS: Record<ParamKey, ParamThresholdConfig> = {
     alarmThreshold: 42,
     safeRangeText: "< 39 km/jam",
   },
-  // Normal: 23.0 - 29.4 Volt (< 18V atau >= 32V = Bahaya, 18-22.9V atau 29.5-31.9V = Waspada) - SAMA PERSIS TFT
+  // Normal: 23.0 - 28.5 Volt (Batas bawah 22.9V, batas atas 28.5V)
+  // Waspada: <= 22.9V atau > 28.5V
+  // Bahaya: < 18.0V atau >= 32.0V
   volt: {
     min: 0,
     max: 35,
     lowAlarmThreshold: 18,
-    lowWarnThreshold: 23,
-    warnThreshold: 29.5,
+    lowWarnThreshold: 22.9,
+    warnThreshold: 28.5,
     alarmThreshold: 32,
-    safeRangeText: "23.0 - 29.4 V",
+    safeRangeText: "23.0 - 28.5 Volt",
   },
 };
 
@@ -105,7 +107,7 @@ export function levelOf(key: ParamKey, v: number): Level {
       return 1;
     case "volt":
       if (v < 18.0 || v >= 32.0) return 3;
-      if (v < 23.0 || v >= 29.5) return 2;
+      if (v <= 22.9 || v > 28.5) return 2;
       return 1;
   }
 }

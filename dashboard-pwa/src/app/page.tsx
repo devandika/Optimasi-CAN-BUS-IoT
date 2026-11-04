@@ -743,14 +743,14 @@ export default function DashboardPage() {
 
             <GaugeCard
               title="System Voltage"
-              safeRangeText="23.0 - 29.4 V"
+              safeRangeText="23.0 - 28.5 Volt"
               value={telemetry.volt}
               unit="Volt"
               min={0}
               max={35}
               lowAlarmThreshold={18}
-              lowWarnThreshold={23}
-              warnThreshold={29.5}
+              lowWarnThreshold={22.9}
+              warnThreshold={28.5}
               alarmThreshold={32}
               state={stateVolt}
               noData={noData}
