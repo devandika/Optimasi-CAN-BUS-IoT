@@ -81,21 +81,21 @@ class SoundAlarmManager {
     if (this.muted) return;
 
     if (level === 2) {
-      // Warning: Beep lembut intermiten (dua nada 880Hz / 1046Hz setiap 1.2 detik)
+      // WARNING (Kuning): Beep peringatan intermiten (dua nada harmonik 880Hz / 1046Hz tiap 850 ms)
       const playWarning = () => {
-        this.playTone(880, 150, "sine", 0.12);
-        setTimeout(() => this.playTone(1046, 180, "sine", 0.12), 160);
+        this.playTone(880, 160, "sine", 0.16);
+        setTimeout(() => this.playTone(1046, 160, "sine", 0.16), 180);
       };
       playWarning();
-      this.intervalId = setInterval(playWarning, 1200);
+      this.intervalId = setInterval(playWarning, 850);
     } else if (level === 3) {
-      // Critical Alarm: Nada peringatan darurat berulang cepat (1200Hz - 900Hz setiap 500 ms)
-      const playCritical = () => {
-        this.playTone(1200, 200, "square", 0.18);
-        setTimeout(() => this.playTone(900, 200, "square", 0.18), 220);
+      // DANGER (Merah): Alarm bahaya darurat intensif cepat (1400Hz - 1000Hz nada gergaji tajam tiap 350 ms)
+      const playDanger = () => {
+        this.playTone(1400, 140, "sawtooth", 0.22);
+        setTimeout(() => this.playTone(1000, 140, "sawtooth", 0.22), 160);
       };
-      playCritical();
-      this.intervalId = setInterval(playCritical, 500);
+      playDanger();
+      this.intervalId = setInterval(playDanger, 350);
     }
   }
 

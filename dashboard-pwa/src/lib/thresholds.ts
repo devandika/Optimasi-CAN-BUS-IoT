@@ -133,8 +133,8 @@ const LEVEL_KEYS: Record<ParamKey, true> = {
 };
 
 export const LEVEL_LABEL: Record<Level, string> = {
-  0: "Dingin",
-  1: "Aman",
-  2: "Waspada",
-  3: "Bahaya",
+  0: "Cold",
+  1: "Normal",
+  2: "Warning",
+  3: "Danger",
 };

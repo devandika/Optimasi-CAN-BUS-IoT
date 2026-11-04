@@ -39,8 +39,8 @@ export const AlertBanner: React.FC<AlertBannerProps> = ({
       }
     : state === 3
     ? {
-        title: "Bahaya, segera periksa mesin",
-        desc: `${list || "Ada sensor"} melewati batas aman. Kurangi beban atau matikan mesin.${
+        title: "DANGER (Bahaya Merah)",
+        desc: `${list || "Ada parameter"} melewati batas aman kritis! Segera kurangi beban atau periksa mesin.${
           lastAlertMessage ? ` (${lastAlertMessage})` : ""
         }`,
         tone: "border-rose-500/50 bg-rose-500/[0.12]",
@@ -50,8 +50,8 @@ export const AlertBanner: React.FC<AlertBannerProps> = ({
       }
     : state === 2
     ? {
-        title: "Perlu diperhatikan",
-        desc: `${list || "Ada sensor"} mendekati batas. Belum berbahaya, tapi pantau terus.`,
+        title: "WARNING (Peringatan Kuning)",
+        desc: `${list || "Ada parameter"} mendekati ambang batas peringatan. Pantau terus kondisi mesin.`,
         tone: "border-amber-500/45 bg-amber-500/[0.10]",
         titleColor: "text-amber-800 dark:text-amber-300",
         Icon: AlertTriangle,

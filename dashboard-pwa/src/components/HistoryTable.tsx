@@ -181,13 +181,13 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         style={{ color: "var(--text-secondary)" }}
       >
         <span className="inline-flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-sm bg-amber-500/40" /> Perlu diperhatikan
+          <span className="w-3 h-3 rounded-sm bg-amber-500/40" /> Warning (Kuning)
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-sm bg-rose-500/40" /> Bahaya
+          <span className="w-3 h-3 rounded-sm bg-rose-500/40" /> Danger (Merah)
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-sm bg-sky-500/30" /> Mesin masih dingin
+          <span className="w-3 h-3 rounded-sm bg-sky-500/30" /> Cold (Biru)
         </span>
         {rows.length > VISIBLE_ROWS && (
           <span style={{ color: "var(--text-muted)" }}>
