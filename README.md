@@ -1,83 +1,102 @@
-# Simulator Dual-Node CAN-Bus ECU Caterpillar 950L
+# Ekosistem Simulator & IoT Telemetri CAN-Bus Caterpillar 950L
 
-> **Judul Proyek:**  
+> **Judul Proyek Awal:**  
 > *"Rancang Bangun Simulator Dual-Node CAN-Bus ECU Caterpillar 950L Berbasis ESP32, Transceiver SN65HVD230, dan Gateway ELM327 Menggunakan Pengendali Tampilan TFT ILI9488 Terintegrasi."*
+>
+> **Pengembangan Terkini (IoT & Heavy Duty Standard):**  
+> *"Sistem Telemetri Alat Berat Caterpillar 950L Berbasis Standar SAE J1939 (29-bit CAN), Arsitektur 3-Node ESP32 Dual-Core, Gateway Cloud MQTT.h (QoS 1), EMQX Cloud, dan Dashboard Industri Next.js PWA (Vercel & Supabase)."*
 
 ---
 
-## 📌 Deskripsi Proyek
-Proyek ini mengimplementasikan simulator sistem kontrol elektronik dan komunikasi bus data otomotif/alat berat standar CAN-Bus (ISO 11898 / ISO 15765-4 OBD-II) untuk mesin alat berat **Caterpillar 950L Wheel Loader**. 
-
-Sistem menggunakan arsitektur **Dual-Node ESP32**:
-1. **Node 1 (Transmitter / ECU Simulator):** Membaca 6 input potensiometer 10k sebagai representasi parameter operasional mesin, lalu mengemasnya menjadi respons frame CAN standar OBD-II (ID `0x7E8`).
-2. **Node 2 (Receiver / Cluster Dashboard & Gateway):** Mengirim query PID berkala (ID `0x7DF`), mengurai data respons, menampilkan antarmuka visual dinamis pada layar **TFT 3.5" ILI9488**, memicu alarm multi-level pada **Active Buzzer 5V**, serta mengemulasi gateway **ELM327 v1.5** via Serial USB untuk integrasi perangkat lunak diagnostik PC (seperti OBD Auto Doctor).
+## 📚 Dokumen Spesifikasi & Rujukan Cepat
+* 🔌 [**`GPIO.md`**](GPIO.md) — Panduan lengkap alokasi pin GPIO untuk ketiga node ESP32 dan pengkabelan periferal.
+* 🛠️ [**`Techstack.md`**](Techstack.md) — Rincian teknologi perangkat keras, protokol bus, broker EMQX, dan stack web app.
+* 📋 [**`PRD.md`**](PRD.md) — Product Requirements Document lengkap dengan batasan lingkup dan klausul proteksi kode.
 
 ---
 
-## 🏗️ Arsitektur Jaringan & Aliran Data
-![Arsitektur Jaringan](Arsitektur%20jaringan.png)
+## 🏗️ Dua Varian Sistem dalam Repositori
 
-1. **Input Layer:** 6 unit potensiometer analog 10k menghasilkan variasi tegangan 0 - 3.3V ke pin ADC ESP32 Node 1.
-2. **ECU Simulator:** ESP32 Node 1 mengonversi nilai ADC menjadi data parameter telemetri OBD-II standar.
-3. **Physical Layer Transceiver:** Chip SN65HVD230 mentranslasikan level tegangan logika 3.3V (CTX/CRX) menjadi sinyal tegangan diferensial (`CAN_H` dan `CAN_L`).
-4. **CAN Bus:** Bekerja pada kecepatan **500 kbps (TWAI ESP32)**.
-5. **Receiver & Instrument Cluster:** ESP32 Node 2 memproses frame CAN, mengontrol display TFT SPI dan buzzer alarm.
-6. **Diagnostic Layer:** 
-   - Soket fisik **OBD-II 16-pin** untuk alat diagnostik eksternal.
-   - Penganalisis bus USB-to-CAN untuk pemantauan paket raw melalui **SavvyCAN**.
-   - Emulasi protokol AT-Command ELM327 via serial USB ke software **OBD Auto Doctor**.
+Proyek ini mempertahankan integritas kode lama sekaligus menyediakan implementasi modern:
 
----
+### 1. Sistem Warisan (Legacy OBD-II 2-Node):
+* [`ProgramFinalNode1.ino`](ProgramFinalNode1.ino) — ECU Simulator (Menjawab query PID OBD-II `0x7DF` dengan `0x7E8`).
+* [`ProgramFinalNode2Revision.ino`](ProgramFinalNode2Revision.ino) — Display Hub & Gateway Serial ELM327 USB (38400 baud) untuk software OBD Auto Doctor.
 
-## 🔌 Diagram Pengkabelan (Wiring Diagram)
-![Wiring Diagram](Wiring%20diagram.jpeg)
-
-### Pemetaan Pin Node 1 (ECU Simulator):
-| Komponen / Sinyal | Pin ESP32 | Keterangan |
-| :--- | :--- | :--- |
-| Potensiometer RPM | GPIO 32 (ADC) | Engine RPM (0 - 3000 RPM) |
-| Potensiometer Load | GPIO 33 (ADC) | Engine Load (0 - 100 %) |
-| Potensiometer Suhu | GPIO 34 (ADC) | Engine Temperature (0 - 120 °C) |
-| Potensiometer MAP | GPIO 35 (ADC) | Manifold Absolute Pressure (0 - 255 kPa) |
-| Potensiometer Speed | GPIO 25 (ADC) | Vehicle Speed (0 - 60 km/h) |
-| Potensiometer Volt | GPIO 26 (ADC) | System Voltage (0.0 - 35.0 V) |
-| SN65HVD230 CTX | GPIO 21 (TWAI TX) | Jalur Transmit CAN |
-| SN65HVD230 CRX | GPIO 22 (TWAI RX) | Jalur Receive CAN |
-
-### Pemetaan Pin Node 2 (Receiver & Dashboard):
-| Komponen / Sinyal | Pin ESP32 | Keterangan |
-| :--- | :--- | :--- |
-| SN65HVD230 CTX | GPIO 21 (TWAI TX) | Jalur Transmit CAN |
-| SN65HVD230 CRX | GPIO 22 (TWAI RX) | Jalur Receive CAN |
-| TFT 3.5" ILI9488 | Hardware SPI | CS, DC, RST, SCK, MOSI, MISO |
-| Active Buzzer 5V | GPIO 13 | Kontrol Active-LOW (Trik Hi-Z) |
-| Serial USB | TX0 / RX0 | 38400 bps (Emulasi ELM327 USB) |
+### 2. Sistem Pengembangan Baru (SAE J1939 3-Node IoT Ecosystem):
+* [`Node1_ECU_J1939.ino`](Node1_ECU_J1939.ino) — **ECU Simulator:** Membaca 6 potensiometer analog dan menyiarkan frame CAN 29-bit SAE J1939 secara periodik (*broadcast periodik tanpa polling delay*).
+* [`Node2_Display_Hub.ino`](Node2_Display_Hub.ino) — **Display Hub Dual-Core:** 
+  - **Core 0:** Penerimaan frame J1939 instan (0 ms latensi) via TWAI dan stream serial UART2 ke Node 3.
+  - **Core 1:** Animasi *loading intro screen* saat boot, render antarmuka grafis TFT 3.5" ILI9488 bebas kedip (*Anti-Flicker* via `setTextPadding` & *differential segment*), dan kontrol Active Buzzer 5V Hi-Z.
+* [`Node3_IoT_Gateway.ino`](Node3_IoT_Gateway.ino) — **IoT Gateway Dual-Core:**
+  - **Core 0:** Manajemen koneksi Wi-Fi (WiFiManager / STA) dan klien **`MQTT.h`** mengunggah data dengan jaminan **QoS 1** ke **EMQX Cloud**.
+  - **Core 1:** Ingestion data UART2 dari Node 2 dan parsing payload JSON.
+* [`dashboard-pwa/`](dashboard-pwa/) — **Dashboard Web App PWA (Next.js):**
+  - Antarmuka industrial dark mode khas Caterpillar (`#FFCD00`).
+  - Koneksi langsung *MQTT over WebSockets (WSS)* ke EMQX Cloud untuk jarum/bar meter *real-time* nol latensi.
+  - PWA *installable* di smartphone/laptop dengan kapabilitas *auto-update*.
+  - Riwayat telemetri dan log alarm terhubung ke **Supabase** (PostgreSQL).
 
 ---
 
-## 📊 Parameter Telemetri & Ambang Batas (Thresholds)
-| Parameter | PID OBD-II | Skala | Kondisi Normal | Peringatan (Warning) | Bahaya (Alarm/Failure) |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **Engine RPM** | `0x0C` | 0 - 3000 RPM | < 2200 RPM | $\ge$ 2200 RPM | $\ge$ 2400 RPM |
-| **Engine Load** | `0x04` | 0 - 100 % | < 95 % | $\ge$ 95 % | $\ge$ 100 % |
-| **Coolant Temp** | `0x05` | 0 - 120 °C | 71 - 104 °C | $\ge$ 105 °C (Cold: <71°C) | $\ge$ 108 °C |
-| **MAP Boost** | `0x0B` | 0 - 255 kPa | < 165 kPa | $\ge$ 165 kPa | $\ge$ 200 kPa |
-| **Vehicle Speed**| `0x0D` | 0 - 60 km/h | < 39 km/h | $\ge$ 39 km/h | $\ge$ 42 km/h |
-| **System Voltage**| `0x42` | 0 - 35.0 V | 23.0 - 29.4 V | < 23.0V atau $\ge$ 29.5V | < 18.0V atau $\ge$ 32.0V |
+## 📊 Pemetaan Parameter SAE J1939 (Caterpillar 950L)
+
+| Parameter Mesin | PGN J1939 | SPN | Skala / Resolusi | Ambang Normal | Peringatan (Warning) | Bahaya (Critical Alarm) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Engine Speed** | `61444 (0xF004)` | **190** | 0.125 rpm/bit (0 - 3000 RPM) | < 2200 RPM | $\ge$ 2200 RPM | $\ge$ 2400 RPM |
+| **Engine Load** | `61443 (0xF003)` | **92** | 1 %/bit (0 - 100 %) | < 95 % | $\ge$ 95 % | $\ge$ 100 % |
+| **Coolant Temp** | `65262 (0xFEEE)` | **110** | 1 °C/bit, offset -40°C (0 - 120 °C) | 71 - 104 °C | $\ge$ 105 °C (Cold: <71°C) | $\ge$ 108 °C |
+| **MAP Boost** | `65270 (0xFEF6)` | **102** | 2 kPa/bit (0 - 255 kPa) | < 165 kPa | $\ge$ 165 kPa | $\ge$ 200 kPa |
+| **Vehicle Speed**| `65265 (0xFEF1)` | **84** | 1/256 km/h (0 - 60 km/h) | < 39 km/h | $\ge$ 39 km/h | $\ge$ 42 km/h |
+| **System Voltage**| `65271 (0xFEF7)`| **168** | 0.05 V/bit (0.0 - 35.0 V) | 23.0 - 29.4 V | < 23.0V / $\ge$ 29.5V | < 18.0V / $\ge$ 32.0V |
 
 ---
 
-## 🔔 Logika Alarm & Indikator
-- **Normal (Hijau):** Buzzer nonaktif (High-Z mode).
-- **Warning (Oranye):** Ikon peringatan menyala oranye, buzzer berbunyi putus-putus (*intermittent beep*) setiap 500 ms sinkron dengan animasi layar.
-- **Alarm / Critical (Merah):** Ikon peringatan berkedip merah/hitam, buzzer berbunyi panjang terus-menerus (*continuous beep*).
+## 🔔 Logika Alarm & Audio Buzzer (GPIO 13)
+- **Normal (State 1 & 0):** Buzzer mati total via mode *High-Impedance (Hi-Z)* pada pinout Active-LOW.
+- **Peringatan / Warning (State 2):** Ikon `!` oranye menyala, buzzer berbunyi putus-putus (*intermittent beep*) setiap 500 ms sinkron dengan layar.
+- **Bahaya / Alarm Kritis (State 3):** Ikon `!` berkedip merah/hitam, buzzer berbunyi panjang tanpa putus (*continuous tone*).
 
 ---
 
-## 💻 Cara Menggunakan
-1. Buka Arduino IDE, pastikan core **ESP32** terpasang.
-2. Pasang library **TFT_eSPI** dan konfigurasikan `User_Setup.h` untuk driver **ILI9488 SPI**.
-3. Upload `ProgramFinalNode1.ino` ke ESP32 Node 1.
-4. Upload `ProgramFinalNode2Revision.ino` ke ESP32 Node 2.
-5. Sambungkan kedua node melalui jalur `CAN_H` dan `CAN_L` pada transceiver SN65HVD230 (pastikan resistor terminasi 120 $\Omega$ aktif jika diperlukan).
-6. Sambungkan kabel USB Node 2 ke PC pada baudrate **38400** untuk integrasi dengan software diagnostik **OBD Auto Doctor**.
+## 🚀 Panduan Menjalankan Sistem IoT
+
+### 1. Menyiapkan Hardware (ESP 1, ESP 2, ESP 3)
+1. Sambungkan kabel sesuai dokumen [**`GPIO.md`**](GPIO.md).
+2. Hubungkan jalur bus CAN (`CAN_H` dan `CAN_L`) antara Node 1 dan Node 2.
+3. Hubungkan pin `GPIO 17 (TX2)` Node 2 ke `GPIO 16 (RX2)` Node 3, serta satukan seluruh jalur **GND**.
+4. Upload:
+   - `Node1_ECU_J1939.ino` ke ESP 1.
+   - `Node2_Display_Hub.ino` ke ESP 2 (pastikan library `TFT_eSPI` terpasang).
+   - `Node3_IoT_Gateway.ino` ke ESP 3 (pastikan library `MQTT` by 256dpi, `WiFiManager`, dan `ArduinoJson` terpasang).
+5. Pada ESP 3, hubungkan ponsel/laptop ke Wi-Fi AP **`CAT950L-Gateway-AP`** (Password: `caterpillar950l`) untuk memasukkan nama Wi-Fi dan password internet Anda.
+
+### 2. Pembaruan Firmware Nirkabel (Dual-Mode Wi-Fi OTA)
+Ketiga node telah dilengkapi sistem Wi-Fi OTA ganda (ArduinoOTA + WebOTA) tanpa mengganggu fungsionalitas utama:
+* **Mode 1 - Arduino IDE Network Port (ArduinoOTA):**
+  - Hubungkan laptop ke jaringan Wi-Fi / Hotspot yang sama dengan node.
+  - Di Arduino IDE, pilih menu **Tools -> Port -> Network Ports**:
+    - `CAT950L-Node1-ECU at 192.168.x.x`
+    - `CAT950L-Node2-Display at 192.168.x.x`
+    - `CAT950L-Node3-Gateway at 192.168.x.x`
+  - Klik tombol **Upload** untuk flash firmware langsung melalui Wi-Fi.
+* **Mode 2 - Web Browser OTA (WebOTA):**
+  - Buka browser (Chrome/Edge di PC atau HP) ke alamat:
+    - Node 1: `http://CAT950L-Node1-ECU.local` atau `http://<IP_NODE_1>`
+    - Node 2: `http://CAT950L-Node2-Display.local` atau `http://<IP_NODE_2>`
+    - Node 3: `http://CAT950L-Node3-Gateway.local` atau `http://<IP_NODE_3>`
+  - Unggah file biner hasil kompilasi (`.bin` dari menu *Sketch -> Export Compiled Binary*) dan klik **Flash Firmware**.
+
+### 3. Menjalankan Dashboard Web App PWA (`dashboard-pwa`)
+1. Masuk ke folder aplikasi web:
+   ```bash
+   cd dashboard-pwa
+   npm install
+   ```
+2. Jalankan server lokal:
+   ```bash
+   npm run dev
+   ```
+3. Buka browser di `http://localhost:3000`.
+4. Klik tombol **"INSTALL APP"** di pojok kanan atas untuk memasang aplikasi langsung ke layar utama laptop/ponsel Anda.
+5. Untuk menghubungkan ke database Supabase, salin `.env.example` menjadi `.env.local` dan masukkan kunci API Supabase Anda.

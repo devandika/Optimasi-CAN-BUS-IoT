@@ -1,0 +1,30 @@
+{
+  "name": "CAT 950L IoT Telemetry Dashboard",
+  "short_name": "CAT 950L",
+  "description": "Industrial Real-time Telemetry Dashboard for Caterpillar 950L Wheel Loader (SAE J1939)",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#FFCD00",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/cat-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
