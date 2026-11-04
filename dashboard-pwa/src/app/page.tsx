@@ -675,13 +675,11 @@ export default function DashboardPage() {
               size="lg"
               className="col-span-2"
               title="Engine Speed (RPM)"
-              safeRangeText="700 - 2200 RPM"
+              safeRangeText="< 2200 RPM"
               value={telemetry.rpm}
               unit="RPM"
               min={0}
               max={3000}
-              lowAlarmThreshold={500}
-              lowWarnThreshold={700}
               warnThreshold={2200}
               alarmThreshold={2400}
               state={stateRpm}
@@ -706,20 +704,20 @@ export default function DashboardPage() {
 
             <GaugeCard
               title="Engine Load"
-              safeRangeText="<95%"
+              safeRangeText="< 95%"
               value={telemetry.load}
               unit="%"
               min={0}
               max={100}
               warnThreshold={95}
-              alarmThreshold={99}
+              alarmThreshold={100}
               state={stateLoad}
               noData={noData}
             />
 
             <GaugeCard
               title="Boost Pressure"
-              safeRangeText="<165 kPa"
+              safeRangeText="< 165 kPa"
               value={telemetry.map}
               unit="kPa"
               min={0}
@@ -732,7 +730,7 @@ export default function DashboardPage() {
 
             <GaugeCard
               title="Speed"
-              safeRangeText="<39 km/jam"
+              safeRangeText="< 39 km/jam"
               value={telemetry.spd}
               unit="km/jam"
               min={0}
@@ -745,15 +743,15 @@ export default function DashboardPage() {
 
             <GaugeCard
               title="System Voltage"
-              safeRangeText="24 - 28 Volt"
+              safeRangeText="23.0 - 29.4 V"
               value={telemetry.volt}
               unit="Volt"
               min={0}
               max={35}
-              lowAlarmThreshold={22}
-              lowWarnThreshold={24}
-              warnThreshold={28}
-              alarmThreshold={30}
+              lowAlarmThreshold={18}
+              lowWarnThreshold={23}
+              warnThreshold={29.5}
+              alarmThreshold={32}
               state={stateVolt}
               noData={noData}
               isFloat
