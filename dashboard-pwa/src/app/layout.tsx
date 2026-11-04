@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
     title: "CAT 950L",
   },
 };
@@ -20,7 +20,7 @@ export const viewport: Viewport = {
   ],
   width: "device-width",
   initialScale: 1,
-  userScalable: true,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

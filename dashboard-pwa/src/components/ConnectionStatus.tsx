@@ -62,19 +62,19 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
   const deviceOk = gatewayOnline && fresh;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
       <div
-        className="glass-subtle min-h-[42px] px-3.5 py-1.5 flex items-center gap-3 text-sm"
+        className="glass-subtle min-h-[34px] sm:min-h-[42px] px-2.5 sm:px-3.5 py-1 flex items-center gap-2 sm:gap-3 text-xs sm:text-sm"
         title={`Server: ${brokerHost}`}
       >
-        <span className="flex items-center gap-2">
+        <span className="flex items-center gap-1.5 sm:gap-2">
           <span
-            className={`relative w-2.5 h-2.5 rounded-full ${
+            className={`relative w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${
               mqttConnected ? "bg-emerald-500" : "bg-rose-500"
             }`}
           />
           <span style={{ color: "var(--text-secondary)" }}>
-            Broker{" "}
+            <span className="hidden sm:inline">Broker </span>
             <strong
               className={
                 mqttConnected
@@ -82,16 +82,16 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
                   : "text-rose-600 dark:text-rose-400"
               }
             >
-              {mqttConnected ? "terhubung" : "terputus"}
+              {mqttConnected ? "Online" : "Offline"}
             </strong>
           </span>
         </span>
 
-        <span className="h-4 w-px" style={{ backgroundColor: "var(--glass-border-strong)" }} />
+        <span className="h-3.5 sm:h-4 w-px" style={{ backgroundColor: "var(--glass-border-strong)" }} />
 
-        <span className="flex items-center gap-2">
+        <span className="flex items-center gap-1.5 sm:gap-2">
           <span
-            className={`relative w-2.5 h-2.5 rounded-full ${
+            className={`relative w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${
               deviceOk ? "bg-emerald-500 live-dot" : "bg-slate-400"
             }`}
           />
@@ -102,8 +102,8 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
 
         {packetCount > 0 && (
           <>
-            <span className="h-4 w-px hidden sm:inline-block" style={{ backgroundColor: "var(--glass-border-strong)" }} />
-            <span className="hidden sm:inline-flex items-center gap-1.5 font-medium tabular-nums text-xs" style={{ color: "var(--text-secondary)" }}>
+            <span className="h-3.5 sm:h-4 w-px hidden md:inline-block" style={{ backgroundColor: "var(--glass-border-strong)" }} />
+            <span className="hidden md:inline-flex items-center gap-1.5 font-medium tabular-nums text-xs" style={{ color: "var(--text-secondary)" }}>
               <Activity className="w-3.5 h-3.5 text-cat-yellow" />
               <span>{packetCount.toLocaleString()} pkt</span>
               {packetRate > 0 && (
@@ -118,10 +118,10 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
         <button
           type="button"
           onClick={handleInstallClick}
-          className="min-h-[42px] px-4 rounded-lg bg-cat-yellow hover:bg-cat-yellowHover text-slate-950 font-bold text-sm inline-flex items-center gap-2 transition-colors"
+          className="min-h-[34px] sm:min-h-[42px] px-3 sm:px-4 rounded-lg bg-cat-yellow hover:bg-cat-yellowHover text-slate-950 font-bold text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 transition-colors"
         >
-          <Download className="w-4 h-4" />
-          Install
+          <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          <span>Install App</span>
         </button>
       )}
     </div>

@@ -573,28 +573,28 @@ export default function DashboardPage() {
   }, [activeBroker, markDataReceived]);
 
   const btn =
-    "min-h-[42px] px-3.5 rounded-lg text-sm font-semibold inline-flex items-center gap-2 transition-colors";
+    "min-h-[34px] sm:min-h-[42px] px-2.5 sm:px-3.5 rounded-lg text-xs sm:text-sm font-semibold inline-flex items-center gap-1.5 sm:gap-2 transition-colors";
 
   return (
-    <div className="min-h-screen lg:h-screen lg:w-screen lg:overflow-hidden flex flex-col">
+    <div className="min-h-screen lg:h-screen landscape:h-screen lg:w-screen landscape:w-screen lg:overflow-hidden landscape:overflow-hidden flex flex-col">
       {/* ─── Caterpillar 950L Boot Animation (Hanya muncul sekali per sesi) ─── */}
       <BootIntro />
 
       {/* ─── Header ─── */}
-      <header className="glass-elevated shrink-0 px-4 py-3 sm:px-6 flex flex-wrap items-center justify-between gap-3 z-20">
-        <div className="flex items-center gap-3">
-          <span className="w-1.5 h-9 rounded-sm bg-cat-yellow shrink-0" aria-hidden="true" />
+      <header className="glass-elevated shrink-0 px-3 py-2 sm:px-6 sm:py-3 landscape:py-1.5 landscape:px-4 flex flex-wrap items-center justify-between gap-2 sm:gap-3 z-20">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <span className="w-1.5 h-7 sm:h-9 rounded-sm bg-cat-yellow shrink-0" aria-hidden="true" />
           <div>
-            <h1 className="text-lg sm:text-xl font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
+            <h1 className="text-sm sm:text-lg lg:text-xl landscape:text-sm font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
               Wheel Loader Caterpillar 950L
             </h1>
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            <p className="text-[10px] sm:text-xs hidden sm:block landscape:hidden lg:block" style={{ color: "var(--text-muted)" }}>
               SAE J1939 CAN-Bus Real-Time Telemetry
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           <ConnectionStatus
             mqttConnected={mqttConnected}
             gatewayOnline={gatewayOnline}
@@ -618,9 +618,9 @@ export default function DashboardPage() {
             }
           >
             {isMuted ? (
-              <VolumeX className="w-4 h-4 text-rose-500" />
+              <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-500" />
             ) : (
-              <Volume2 className="w-4 h-4 text-emerald-500" />
+              <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-500" />
             )}
             <span className="hidden sm:inline">
               {isMuted ? "Mute" : "Audio"}
@@ -639,7 +639,7 @@ export default function DashboardPage() {
             title="Pengaturan server"
             aria-label="Pengaturan server"
           >
-            <Settings className="w-4 h-4" />
+            <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span className="hidden md:inline">Pengaturan Broker</span>
           </button>
 
@@ -651,15 +651,15 @@ export default function DashboardPage() {
             aria-label={theme === "light" ? "Ganti ke tampilan gelap" : "Ganti ke tampilan terang"}
             title={theme === "light" ? "Tampilan gelap" : "Tampilan terang"}
           >
-            {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4 text-amber-400" />}
+            {theme === "light" ? <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />}
           </button>
         </div>
       </header>
 
-      {/* ─── Isi utama: PC 1 layar penuh, HP bisa digulir ─── */}
-      <main className="flex-1 min-h-0 w-full grid grid-cols-1 lg:grid-cols-12 gap-3.5 p-3.5 sm:p-4 overflow-y-auto lg:overflow-hidden">
+      {/* ─── Isi utama: PC & HP Miring 1 layar penuh, HP Tegak bisa digulir ─── */}
+      <main className="flex-1 min-h-0 w-full grid grid-cols-1 landscape:grid-cols-12 lg:grid-cols-12 gap-2 sm:gap-3.5 p-2 sm:p-4 overflow-y-auto landscape:overflow-hidden lg:overflow-hidden">
         {/* Kiri: status + indikator lingkaran */}
-        <div className="lg:col-span-7 flex flex-col gap-3.5 min-h-0">
+        <div className="landscape:col-span-7 lg:col-span-7 flex flex-col gap-2 sm:gap-3.5 min-h-0">
           <div className="shrink-0">
             <AlertBanner
               state={overall}
@@ -670,7 +670,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Dua indikator utama (besar) di atas, empat pendukung di bawah */}
-          <div className="flex-1 min-h-0 grid grid-cols-2 lg:grid-cols-4 lg:grid-rows-[minmax(0,1.35fr)_minmax(0,1fr)] gap-3.5">
+          <div className="flex-1 min-h-0 grid grid-cols-2 landscape:grid-cols-4 lg:grid-cols-4 landscape:grid-rows-2 lg:grid-rows-[minmax(0,1.35fr)_minmax(0,1fr)] gap-2 sm:gap-3.5">
             <GaugeCard
               size="lg"
               className="col-span-2"
@@ -760,7 +760,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Kanan: riwayat per detik */}
-        <div className="lg:col-span-5 flex flex-col min-h-0">
+        <div className="landscape:col-span-5 lg:col-span-5 flex flex-col min-h-0">
           <HistoryTable
             rows={recordedLog}
             isRecording={isRecording}

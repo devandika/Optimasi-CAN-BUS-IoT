@@ -109,10 +109,10 @@ export const BootIntro: React.FC<BootIntroProps> = ({ onComplete }) => {
         }}
       />
 
-      <div className="relative z-10 flex flex-col items-center w-full max-w-md px-6 select-none">
+      <div className="relative z-10 flex flex-col items-center w-full max-w-md px-6 select-none landscape:scale-[0.78] landscape:sm:scale-100 landscape:origin-center">
 
         {/* ─── 1. LOGO CAT ─── */}
-        <div className={`transition-all duration-700 ease-out ${show(1)} mb-8`}>
+        <div className={`transition-all duration-700 ease-out ${show(1)} mb-6 landscape:mb-2 sm:mb-8`}>
           <div className="flex flex-col items-center">
             {/* Segitiga CAT Yellow khas Caterpillar */}
             <svg
@@ -154,7 +154,7 @@ export const BootIntro: React.FC<BootIntroProps> = ({ onComplete }) => {
         </div>
 
         {/* ─── 2. GAUGE ARC (reuse GaugeCard geometry) ─── */}
-        <div className={`transition-all duration-700 ease-out ${show(2)} w-52 h-44 relative mb-4`}>
+        <div className={`transition-all duration-700 ease-out ${show(2)} w-48 sm:w-52 h-40 sm:h-44 relative mb-3 landscape:mb-1 sm:mb-4`}>
           <svg viewBox="0 0 200 170" className="w-full h-full">
             {/* Track latar */}
             <path
@@ -215,7 +215,7 @@ export const BootIntro: React.FC<BootIntroProps> = ({ onComplete }) => {
         </div>
 
         {/* ─── 3. PROGRESS BAR ─── */}
-        <div className={`transition-all duration-700 ease-out ${show(3)} w-full mb-6`}>
+        <div className={`transition-all duration-700 ease-out ${show(3)} w-full mb-4 landscape:mb-2 sm:mb-6`}>
           <div className="w-full h-[5px] rounded-full bg-white/[0.06] overflow-hidden">
             <div
               className="h-full rounded-full"

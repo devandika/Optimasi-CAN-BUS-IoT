@@ -65,56 +65,57 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
   return (
     <section className={`glass-card flex flex-col min-h-0 overflow-hidden ${className}`}>
       {/* Judul + tombol unduh */}
-      <header className="px-4 pt-4 pb-3 flex flex-wrap items-start justify-between gap-3 shrink-0">
+      <header className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4 sm:pb-3 landscape:py-2 landscape:px-3 flex flex-wrap items-center justify-between gap-2 shrink-0">
         <div className="min-w-0">
-          <h2 className="text-lg font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
+          <h2 className="text-sm sm:text-lg landscape:text-xs font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
             Riwayat per detik
           </h2>
-          <p className="text-sm mt-0.5 flex items-center gap-1.5" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs sm:text-sm mt-0.5 flex items-center gap-1.5" style={{ color: "var(--text-muted)" }}>
             <Clock className="w-3.5 h-3.5" />
-            {isRecording ? "Mencatat setiap 1 detik" : "Pencatatan berhenti, menunggu data"}
+            <span className="hidden sm:inline">{isRecording ? "Mencatat per detik" : "Menunggu data"}</span>
+            <span className="sm:hidden">{isRecording ? "Aktif" : "Menunggu"}</span>
             {hasRows && <span>· {rows.length} baris</span>}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <button
             type="button"
             onClick={onExportCsv}
             disabled={!hasRows}
-            className="min-h-[40px] px-3.5 rounded-lg text-sm font-bold bg-cat-yellow hover:bg-cat-yellowHover text-slate-950 inline-flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="min-h-[34px] sm:min-h-[40px] px-2.5 sm:px-3.5 rounded-lg text-xs sm:text-sm font-bold bg-cat-yellow hover:bg-cat-yellowHover text-slate-950 inline-flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="Unduh semua riwayat sebagai file Excel (CSV)"
           >
-            <FileSpreadsheet className="w-4 h-4" />
-            Excel
+            <FileSpreadsheet className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span>Excel</span>
           </button>
           <button
             type="button"
             onClick={onExportJson}
             disabled={!hasRows}
-            className="min-h-[40px] px-3 rounded-lg text-sm font-semibold glass-subtle inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="min-h-[34px] sm:min-h-[40px] px-2.5 sm:px-3 rounded-lg text-xs sm:text-sm font-semibold glass-subtle inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ color: "var(--text-primary)" }}
             title="Unduh semua riwayat sebagai file JSON"
           >
-            <FileJson className="w-4 h-4" />
-            JSON
+            <FileJson className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span>JSON</span>
           </button>
           <button
             type="button"
             onClick={onClear}
             disabled={!hasRows}
-            className="min-h-[40px] min-w-[40px] rounded-lg glass-subtle inline-flex items-center justify-center hover:text-rose-500 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="min-h-[34px] min-w-[34px] sm:min-h-[40px] sm:min-w-[40px] rounded-lg glass-subtle inline-flex items-center justify-center hover:text-rose-500 disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ color: "var(--text-muted)" }}
             title="Hapus riwayat"
             aria-label="Hapus riwayat"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
         </div>
       </header>
 
       {/* Tabel */}
-      <div className="flex-1 min-h-[280px] overflow-auto border-t border-[var(--glass-outline)]">
+      <div className="flex-1 min-h-[160px] sm:min-h-[280px] landscape:min-h-0 overflow-auto border-t border-[var(--glass-outline)]">
         {hasRows ? (
           <table className="w-full text-sm tabular-nums border-collapse">
             <thead className="sticky top-0 z-10" style={{ background: "var(--glass-bg-elevated)" }}>
@@ -181,13 +182,13 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         style={{ color: "var(--text-secondary)" }}
       >
         <span className="inline-flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-sm bg-amber-500/40" /> Warning (Kuning)
+          <span className="w-3 h-3 rounded-sm bg-amber-500/40" /> Warning
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-sm bg-rose-500/40" /> Danger (Merah)
+          <span className="w-3 h-3 rounded-sm bg-rose-500/40" /> Danger
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-sm bg-sky-500/30" /> Cold (Biru)
+          <span className="w-3 h-3 rounded-sm bg-sky-500/30" /> Cold
         </span>
         {rows.length > VISIBLE_ROWS && (
           <span style={{ color: "var(--text-muted)" }}>

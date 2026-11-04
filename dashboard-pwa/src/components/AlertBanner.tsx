@@ -81,17 +81,17 @@ export const AlertBanner: React.FC<AlertBannerProps> = ({
     <div
       role={!waiting && state >= 2 ? "alert" : "status"}
       aria-live="polite"
-      className={`glass-card px-4 py-3.5 flex items-start gap-3 ${config.tone}`}
+      className={`glass-card px-3 py-2 sm:px-4 sm:py-3.5 landscape:py-1.5 landscape:px-3 flex items-start gap-2.5 sm:gap-3 ${config.tone}`}
     >
-      <Icon className={`w-6 h-6 shrink-0 mt-0.5 ${config.iconColor}`} />
+      <Icon className={`w-5 h-5 sm:w-6 sm:h-6 landscape:w-4 landscape:h-4 shrink-0 mt-0.5 ${config.iconColor}`} />
       <div className="min-w-0">
         <h2
-          className={`text-lg font-bold leading-tight ${config.titleColor}`}
+          className={`text-sm sm:text-base lg:text-lg landscape:text-xs font-bold leading-tight ${config.titleColor}`}
           style={config.titleColor ? undefined : { color: "var(--text-primary)" }}
         >
           {config.title}
         </h2>
-        <p className="text-sm sm:text-[15px] leading-relaxed mt-0.5" style={{ color: "var(--text-secondary)" }}>
+        <p className="text-xs sm:text-sm lg:text-[15px] landscape:text-[11px] leading-snug sm:leading-relaxed mt-0.5 line-clamp-1 landscape:line-clamp-1 sm:line-clamp-none" style={{ color: "var(--text-secondary)" }}>
           {config.desc}
         </p>
       </div>
