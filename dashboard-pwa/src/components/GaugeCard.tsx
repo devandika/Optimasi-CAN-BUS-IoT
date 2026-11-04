@@ -95,14 +95,14 @@ export const GaugeCard: React.FC<GaugeCardProps> = ({
 
   return (
     <section
-      className={`glass-card flex flex-col min-h-0 ${isLarge ? "p-3 sm:p-5 landscape:p-2.5" : "p-2.5 sm:p-4 landscape:p-2"} ${className}`}
+      className={`glass-card flex flex-col min-h-0 ${isLarge ? "p-3 sm:p-5" : "p-2.5 sm:p-4"} ${className}`}
       aria-label={`${title}: ${noData ? "belum ada data" : `${display} ${unit}, ${LEVEL_LABEL[state]}`}`}
     >
       {/* Judul + status */}
-      <header className="flex items-start justify-between gap-1.5 sm:gap-3">
+      <header className="flex items-start justify-between gap-1.5 shrink-0">
         <div className="min-w-0">
           <h2
-            className={`font-bold leading-tight truncate ${isLarge ? "text-sm sm:text-lg lg:text-xl landscape:text-xs sm:landscape:text-sm" : "text-xs sm:text-[15px] lg:text-base landscape:text-[11px] sm:landscape:text-xs"}`}
+            className="font-bold leading-tight truncate text-xs sm:text-base lg:text-lg"
             style={{ color: "var(--text-primary)" }}
             title={title}
           >
@@ -110,8 +110,7 @@ export const GaugeCard: React.FC<GaugeCardProps> = ({
           </h2>
           {subtitle && (
             <p
-              className={`mt-0.5 leading-snug truncate ${isLarge ? "text-xs sm:text-sm" : "text-[11px] sm:text-xs"}`}
-              style={{ color: "var(--text-muted)" }}
+              className="mt-0.5 leading-snug truncate text-[11px] sm:text-xs text-[var(--text-muted)] hidden sm:block"
             >
               {subtitle}
             </p>
@@ -119,7 +118,7 @@ export const GaugeCard: React.FC<GaugeCardProps> = ({
         </div>
 
         <span
-          className={`shrink-0 font-bold ${isLarge ? "text-xs sm:text-sm landscape:text-[10px] sm:landscape:text-xs" : "text-[11px] sm:text-xs landscape:text-[10px]"} ${noData ? "" : color.text}`}
+          className={`shrink-0 font-bold text-[10px] sm:text-xs ${noData ? "" : color.text}`}
           style={noData ? { color: "var(--text-muted)" } : undefined}
         >
           {noData ? "Belum ada" : LEVEL_LABEL[state]}
@@ -127,7 +126,7 @@ export const GaugeCard: React.FC<GaugeCardProps> = ({
       </header>
 
       {/* Indikator lingkaran */}
-      <div className={`relative flex-1 ${isLarge ? "min-h-[140px] sm:min-h-[200px]" : "min-h-[110px] sm:min-h-[150px]"} landscape:min-h-0 lg:min-h-0 my-0.5 sm:my-1`}>
+      <div className="relative flex-1 min-h-[90px] sm:min-h-[130px] my-1">
         <svg
           viewBox="0 0 200 178"
           className="absolute inset-0 w-full h-full"
@@ -143,7 +142,7 @@ export const GaugeCard: React.FC<GaugeCardProps> = ({
             strokeLinecap="round"
           />
 
-          {/* Zona batas (di sisi dalam cincin): biru = dingin, kuning = waspada, merah = bahaya */}
+          {/* Zona batas (di sisi dalam cincin) */}
           {coldThreshold !== undefined && toRatio(coldThreshold) > 0 && (
             <path
               d={arc(0, toRatio(coldThreshold), R - 13)}
@@ -213,7 +212,7 @@ export const GaugeCard: React.FC<GaugeCardProps> = ({
             y={CY + 8}
             textAnchor="middle"
             className="font-display"
-            fontSize={display.length > 4 ? 40 : 48}
+            fontSize={display.length > 4 ? 38 : 46}
             fontWeight="700"
             fill={noData ? "var(--text-muted)" : "var(--text-primary)"}
             style={{ fontVariantNumeric: "tabular-nums" }}
@@ -224,7 +223,7 @@ export const GaugeCard: React.FC<GaugeCardProps> = ({
             x={CX}
             y={CY + 34}
             textAnchor="middle"
-            fontSize="15"
+            fontSize="14"
             fontWeight="600"
             fill="var(--text-muted)"
           >
@@ -232,10 +231,10 @@ export const GaugeCard: React.FC<GaugeCardProps> = ({
           </text>
 
           {/* Skala min / max di ujung busur */}
-          <text x={startPt.x} y={startPt.y + 24} textAnchor="middle" fontSize="13" fontWeight="600" fill="var(--text-muted)">
+          <text x={startPt.x} y={startPt.y + 24} textAnchor="middle" fontSize="12" fontWeight="600" fill="var(--text-muted)">
             {min}
           </text>
-          <text x={endPt.x} y={endPt.y + 24} textAnchor="middle" fontSize="13" fontWeight="600" fill="var(--text-muted)">
+          <text x={endPt.x} y={endPt.y + 24} textAnchor="middle" fontSize="12" fontWeight="600" fill="var(--text-muted)">
             {max}
           </text>
         </svg>
@@ -243,7 +242,7 @@ export const GaugeCard: React.FC<GaugeCardProps> = ({
 
       {/* Keterangan batas aman, kalimat biasa */}
       {safeRangeText && (
-        <p className="text-[11px] sm:text-sm landscape:text-[10px] sm:landscape:text-xs leading-snug truncate" style={{ color: "var(--text-secondary)" }}>
+        <p className="text-[10px] sm:text-xs leading-tight truncate shrink-0 mt-auto text-[var(--text-secondary)]">
           Normal: {safeRangeText}
         </p>
       )}

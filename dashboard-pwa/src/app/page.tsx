@@ -139,6 +139,9 @@ export default function DashboardPage() {
   const [showConfig, setShowConfig] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
+  // Tab Tampilan Mobile (Split / Gauges / Table)
+  const [mobileTab, setMobileTab] = useState<"split" | "gauges" | "table">("split");
+
   // Active Broker Config
   const [activeBroker, setActiveBroker] =
     useState<ActiveBrokerConfig>(DEFAULT_BROKER);
@@ -576,25 +579,65 @@ export default function DashboardPage() {
     "min-h-[34px] sm:min-h-[42px] px-2.5 sm:px-3.5 rounded-lg text-xs sm:text-sm font-semibold inline-flex items-center gap-1.5 sm:gap-2 transition-colors";
 
   return (
-    <div className="min-h-screen lg:h-screen landscape:h-screen lg:w-screen landscape:w-screen lg:overflow-hidden landscape:overflow-hidden flex flex-col">
+    <div className="min-h-screen lg:h-screen lg:w-screen lg:overflow-hidden flex flex-col">
       {/* ─── Caterpillar 950L Boot Animation (Hanya muncul sekali per sesi) ─── */}
       <BootIntro />
 
       {/* ─── Header ─── */}
-      <header className="glass-elevated shrink-0 px-3 py-2 sm:px-6 sm:py-3 landscape:py-1.5 landscape:px-4 flex flex-wrap items-center justify-between gap-2 sm:gap-3 z-20">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <span className="w-1.5 h-7 sm:h-9 rounded-sm bg-cat-yellow shrink-0" aria-hidden="true" />
+      <header className="glass-elevated shrink-0 px-2.5 py-1.5 sm:px-6 sm:py-3 flex flex-wrap items-center justify-between gap-2 z-20">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <span className="w-1.5 h-6 sm:h-9 rounded-sm bg-cat-yellow shrink-0" aria-hidden="true" />
           <div>
-            <h1 className="text-sm sm:text-lg lg:text-xl landscape:text-sm font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
-              Wheel Loader Caterpillar 950L
+            <h1 className="text-xs sm:text-base lg:text-xl font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
+              CAT 950L <span className="hidden sm:inline">Wheel Loader</span>
             </h1>
-            <p className="text-[10px] sm:text-xs hidden sm:block landscape:hidden lg:block" style={{ color: "var(--text-muted)" }}>
+            <p className="text-[10px] sm:text-xs hidden lg:block" style={{ color: "var(--text-muted)" }}>
               SAE J1939 CAN-Bus Real-Time Telemetry
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+        {/* Mobile View Switcher (Hanya di layar HP / non-desktop) */}
+        <div className="flex lg:hidden items-center p-0.5 rounded-lg glass-subtle text-[11px] font-semibold">
+          <button
+            type="button"
+            onClick={() => setMobileTab("split")}
+            className={`px-2 py-0.5 rounded-md transition-all ${
+              mobileTab === "split"
+                ? "bg-cat-yellow text-slate-950 font-bold shadow-xs"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            }`}
+            title="Tampilan Split seperti web"
+          >
+            Split (Web)
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileTab("gauges")}
+            className={`px-2 py-0.5 rounded-md transition-all ${
+              mobileTab === "gauges"
+                ? "bg-cat-yellow text-slate-950 font-bold shadow-xs"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            }`}
+            title="Fokus instrumen gauge"
+          >
+            Gauge
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileTab("table")}
+            className={`px-2 py-0.5 rounded-md transition-all ${
+              mobileTab === "table"
+                ? "bg-cat-yellow text-slate-950 font-bold shadow-xs"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            }`}
+            title="Fokus tabel data"
+          >
+            Tabel
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <ConnectionStatus
             mqttConnected={mqttConnected}
             gatewayOnline={gatewayOnline}
@@ -622,7 +665,7 @@ export default function DashboardPage() {
             ) : (
               <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-500" />
             )}
-            <span className="hidden sm:inline">
+            <span className="hidden md:inline">
               {isMuted ? "Mute" : "Audio"}
             </span>
           </button>
@@ -640,7 +683,7 @@ export default function DashboardPage() {
             aria-label="Pengaturan server"
           >
             <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span className="hidden md:inline">Pengaturan Broker</span>
+            <span className="hidden xl:inline">Pengaturan Broker</span>
           </button>
 
           <button
@@ -656,10 +699,18 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* ─── Isi utama: PC & HP Miring 1 layar penuh, HP Tegak bisa digulir ─── */}
-      <main className="flex-1 min-h-0 w-full grid grid-cols-1 landscape:grid-cols-12 lg:grid-cols-12 gap-2 sm:gap-3.5 p-2 sm:p-4 overflow-y-auto landscape:overflow-hidden lg:overflow-hidden">
+      {/* ─── Isi utama: Responsif & Bebas Overflow ─── */}
+      <main className="flex-1 min-h-0 w-full grid grid-cols-1 landscape:grid-cols-12 lg:grid-cols-12 gap-2 sm:gap-3 p-2 sm:p-4 overflow-y-auto lg:overflow-hidden">
         {/* Kiri: status + indikator lingkaran */}
-        <div className="landscape:col-span-7 lg:col-span-7 flex flex-col gap-2 sm:gap-3.5 min-h-0">
+        <div
+          className={`flex flex-col gap-2 min-h-0 ${
+            mobileTab === "table" ? "hidden lg:flex" : ""
+          } ${
+            mobileTab === "gauges"
+              ? "col-span-1 landscape:col-span-12 lg:col-span-7"
+              : "landscape:col-span-7 lg:col-span-7"
+          }`}
+        >
           <div className="shrink-0">
             <AlertBanner
               state={overall}
@@ -669,11 +720,17 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Dua indikator utama (besar) di atas, empat pendukung di bawah */}
-          <div className="flex-1 min-h-0 grid grid-cols-2 landscape:grid-cols-4 lg:grid-cols-4 landscape:grid-rows-2 lg:grid-rows-[minmax(0,1.35fr)_minmax(0,1fr)] gap-2 sm:gap-3.5">
+          {/* Indikator Gauge: 2 kolom yang proporsional di mobile landscape, 4 kolom di desktop */}
+          <div
+            className={`flex-1 min-h-0 grid gap-2 sm:gap-2.5 ${
+              mobileTab === "gauges"
+                ? "grid-cols-2 sm:grid-cols-3 landscape:grid-cols-3"
+                : "grid-cols-2 landscape:grid-cols-2 lg:grid-cols-4 lg:grid-rows-[minmax(0,1.35fr)_minmax(0,1fr)]"
+            }`}
+          >
             <GaugeCard
               size="lg"
-              className="col-span-2"
+              className={mobileTab === "gauges" ? "col-span-1" : "col-span-1 lg:col-span-2"}
               title="Engine Speed (RPM)"
               safeRangeText="< 2200 RPM"
               value={telemetry.rpm}
@@ -688,7 +745,7 @@ export default function DashboardPage() {
 
             <GaugeCard
               size="lg"
-              className="col-span-2"
+              className={mobileTab === "gauges" ? "col-span-1" : "col-span-1 lg:col-span-2"}
               title="Engine Temp"
               safeRangeText="71 - 104 °C"
               value={telemetry.temp}
@@ -760,7 +817,15 @@ export default function DashboardPage() {
         </div>
 
         {/* Kanan: riwayat per detik */}
-        <div className="landscape:col-span-5 lg:col-span-5 flex flex-col min-h-0">
+        <div
+          className={`flex flex-col min-h-0 ${
+            mobileTab === "gauges" ? "hidden lg:flex" : ""
+          } ${
+            mobileTab === "table"
+              ? "col-span-1 landscape:col-span-12 lg:col-span-5"
+              : "landscape:col-span-5 lg:col-span-5"
+          }`}
+        >
           <HistoryTable
             rows={recordedLog}
             isRecording={isRecording}
