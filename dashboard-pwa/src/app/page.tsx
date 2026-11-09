@@ -161,40 +161,65 @@ export default function DashboardPage() {
     setLastDataAt(snapshot.updatedAt);
   }, []);
 
-  // Pulihkan riwayat (maks 100 baris) dari sessionStorage atau Supabase saat awal muat
+  // Pulihkan riwayat 100 baris terakhir dari cache lokal dan sinkronkan dengan Supabase saat awal muat
   useEffect(() => {
+    // 1. Pulihkan seketika dari sessionStorage atau localStorage agar UI langsung terisi tanpa delay
     try {
-      const cached = sessionStorage.getItem("cat950l-recorded-log");
+      const cached =
+        sessionStorage.getItem("cat950l-recorded-log") ||
+        localStorage.getItem("cat950l-recorded-log-cache");
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
           setRecordedLog(parsed.slice(-PERSIST_LOG_LIMIT));
-          return;
         }
       }
-
-      // Jika sessionStorage kosong, coba muat dari database melalui API
-      fetch("/api/telemetry?limit=100")
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (data?.records && Array.isArray(data.records) && data.records.length > 0) {
-            const mapped: TelemetryState[] = data.records.map((r: any) => ({
-              rpm: Number(r.rpm ?? 0),
-              load: Number(r.load_pct ?? r.load ?? 0),
-              temp: Number(r.temp_c ?? r.temp ?? 0),
-              map: Number(r.map_kpa ?? r.map ?? 0),
-              spd: Number(r.speed_kmh ?? r.spd ?? 0),
-              volt: Number(r.volt_v ?? r.volt ?? 0),
-              st: Number(r.state_level ?? r.st ?? 1),
-              updatedAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
-            }));
-            const trimmed = mapped.slice(-PERSIST_LOG_LIMIT);
-            setRecordedLog(trimmed);
-            sessionStorage.setItem("cat950l-recorded-log", JSON.stringify(trimmed));
-          }
-        })
-        .catch(() => {});
     } catch {}
+
+    // 2. Ambil 100 baris riwayat data terbaru dari database Supabase melalui API route
+    fetch("/api/telemetry?limit=100")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        const rawList = Array.isArray(json?.data)
+          ? json.data
+          : Array.isArray(json?.records)
+          ? json.records
+          : [];
+
+        if (rawList.length > 0) {
+          // Supabase query mengembalikan data berurutan DESC (terbaru di index 0).
+          // Di recordedLog, kita menyimpannya secara kronologis ASC (paling baru di index terakhir),
+          // karena saat render HistoryTable melakukan rows.slice(-300).reverse().
+          const chronological = [...rawList].reverse();
+          const mapped: TelemetryState[] = chronological.map((r: any) => ({
+            rpm: Number(r.rpm ?? 0),
+            load: Number(r.load_pct ?? r.load ?? 0),
+            temp: Number(r.temp_c ?? r.temp ?? 0),
+            map: Number(r.map_kpa ?? r.map ?? 0),
+            spd: Number(r.speed_kmh ?? r.speed ?? r.spd ?? 0),
+            volt: Number(r.volt_v ?? r.volt ?? 0),
+            st: Number(r.state_level ?? r.st ?? 1),
+            updatedAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+          }));
+
+          const trimmed = mapped.slice(-PERSIST_LOG_LIMIT);
+
+          // Hanya isi dari database jika belum ada data live baru dari hardware yang masuk
+          if (lastDataAtRef.current === null) {
+            setRecordedLog(trimmed);
+          }
+
+          // Sinkronkan ke sessionStorage & localStorage untuk offline fallback
+          try {
+            const serialized = JSON.stringify(trimmed);
+            sessionStorage.setItem("cat950l-recorded-log", serialized);
+            localStorage.setItem("cat950l-recorded-log-cache", serialized);
+          } catch {}
+        }
+      })
+      .catch((err) => {
+        console.warn("[Dashboard] Gagal memuat riwayat Supabase:", err);
+      });
   }, []);
 
   // Pencatat riwayat: tepat 1 baris per detik selama data masih segar + hitung packet rate
@@ -221,12 +246,11 @@ export default function DashboardPage() {
             ? next.slice(next.length - MAX_LOG_SAMPLES)
             : next;
 
-        // Sinkronkan 100 baris terbaru ke sessionStorage
+        // Sinkronkan 100 baris terbaru ke sessionStorage & localStorage
         try {
-          sessionStorage.setItem(
-            "cat950l-recorded-log",
-            JSON.stringify(trimmed.slice(-PERSIST_LOG_LIMIT))
-          );
+          const serialized = JSON.stringify(trimmed.slice(-PERSIST_LOG_LIMIT));
+          sessionStorage.setItem("cat950l-recorded-log", serialized);
+          localStorage.setItem("cat950l-recorded-log-cache", serialized);
         } catch {}
 
         return trimmed;
@@ -438,6 +462,7 @@ export default function DashboardPage() {
     setRecordedLog([]);
     try {
       sessionStorage.removeItem("cat950l-recorded-log");
+      localStorage.removeItem("cat950l-recorded-log-cache");
     } catch {}
   };
 

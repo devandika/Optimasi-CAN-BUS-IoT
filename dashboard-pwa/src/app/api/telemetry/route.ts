@@ -124,7 +124,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({
+      success: true,
+      data,
+      records: data,
+      count: Array.isArray(data) ? data.length : 0,
+    });
   } catch (err: unknown) {
     console.error("[API Telemetry POST] Request parse/execution error:", err);
     return NextResponse.json(
@@ -168,7 +173,12 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({
+      success: true,
+      data,
+      records: data,
+      count: Array.isArray(data) ? data.length : 0,
+    });
   } catch (err: unknown) {
     console.error("[API Telemetry GET] Unexpected error:", err);
     return NextResponse.json(

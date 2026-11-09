@@ -122,7 +122,7 @@ export const GaugeCard: React.FC<GaugeCardProps> = ({
           className={`shrink-0 font-bold ${isLarge ? "text-xs sm:text-sm landscape:text-[10px] sm:landscape:text-xs" : "text-[11px] sm:text-xs landscape:text-[10px]"} ${noData ? "" : color.text}`}
           style={noData ? { color: "var(--text-muted)" } : undefined}
         >
-          {noData ? "Belum ada" : LEVEL_LABEL[state]}
+          {noData ? "-" : LEVEL_LABEL[state]}
         </span>
       </header>
 
