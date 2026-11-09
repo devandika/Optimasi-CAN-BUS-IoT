@@ -2,7 +2,7 @@
  * ==============================================================================
  * PROJEK : Simulator Dual-Node CAN-Bus ECU Caterpillar 950L (IoT Enhanced)
  * MODUL  : Node 1 - Electronic Control Unit (ECU) Simulator
- * STANDAR: Master-Slave OBD-II (0x7DF/0x7E8) & SAE J1939 (@ 500 kbps)
+ * STANDAR: Master-Slave OBD-II (0x7DF/0x7E8) CAN Bus Standar (@ 500 kbps)
  * HARDWARE: ESP32 DevKit V1 + Transceiver CAN SN65HVD230 + 6x Potensiometer 10k
  * ==============================================================================
  */
@@ -47,18 +47,6 @@ unsigned long wifiConnectStart = 0;
 #define TX_PIN 21       // Terhubung ke CTX / TXD SN65HVD230
 #define RX_PIN 22       // Terhubung ke CRX / RXD SN65HVD230
 
-// ------------------------------------------------------------------------------
-// DEFINISI PARAMETER GROUP NUMBER (PGN) SAE J1939
-// ------------------------------------------------------------------------------
-#define PGN_EEC1 61444  // 0xF004 - Electronic Engine Controller 1 (RPM)
-#define PGN_EEC2 61443  // 0xF003 - Electronic Engine Controller 2 (Engine Load)
-#define PGN_ET1  65262  // 0xFEEE - Engine Temperature 1 (Coolant Temp)
-#define PGN_IC1  65270  // 0xFEF6 - Intake/Exhaust Conditions 1 (MAP Boost)
-#define PGN_CCVS 65265  // 0xFEF1 - Cruise Control / Vehicle Speed (Ground Speed)
-#define PGN_VEP1 65271  // 0xFEF7 - Vehicle Electrical Power 1 (System Voltage)
-
-#define SOURCE_ADDR_ENGINE 0x00
-
 // Waktu terakhir menerima request CAN dari Node 2 (untuk Watchdog Auto-Reset)
 unsigned long lastRxFromNode2 = 0;
 unsigned long lastWatchdogCheck = 0;
@@ -88,15 +76,6 @@ void resetTWAI() {
   twai_driver_uninstall();
   delay(2);
   initTWAI();
-}
-
-// ------------------------------------------------------------------------------
-// FUNGSI MEMBENTUK 29-BIT IDENTIFIER SAE J1939
-// ------------------------------------------------------------------------------
-uint32_t makeJ1939Id(uint8_t priority, uint32_t pgn, uint8_t sourceAddress) {
-  return ((uint32_t)(priority & 0x07) << 26) |
-         ((uint32_t)(pgn & 0x3FFFF) << 8) |
-         ((uint32_t)(sourceAddress & 0xFF));
 }
 
 // ------------------------------------------------------------------------------
@@ -189,71 +168,6 @@ void sendOBDResponse(uint8_t pid) {
       return;
   }
   twai_transmit(&tx_msg, pdMS_TO_TICKS(10));
-}
-
-// ------------------------------------------------------------------------------
-// TRANSMISI FRAME J1939 SPESIFIK (TETAP TERSEDIA & UTUH)
-// ------------------------------------------------------------------------------
-void transmitEEC1() {
-  twai_message_t msg = {};
-  msg.extd = 1; msg.rtr = 0; msg.data_length_code = 8;
-  msg.identifier = makeJ1939Id(3, PGN_EEC1, SOURCE_ADDR_ENGINE);
-  uint16_t rpm = map(readFilteredADC(PIN_RPM, 0), 0, 4095, 0, 3000);
-  uint16_t raw_rpm = rpm * 8;
-  memset(msg.data, 0xFF, 8);
-  msg.data[3] = raw_rpm & 0xFF;
-  msg.data[4] = (raw_rpm >> 8) & 0xFF;
-  twai_transmit(&msg, pdMS_TO_TICKS(5));
-}
-
-void transmitEEC2() {
-  twai_message_t msg = {};
-  msg.extd = 1; msg.rtr = 0; msg.data_length_code = 8;
-  msg.identifier = makeJ1939Id(3, PGN_EEC2, SOURCE_ADDR_ENGINE);
-  memset(msg.data, 0xFF, 8);
-  msg.data[2] = map(readFilteredADC(PIN_LOAD, 1), 0, 4095, 0, 100);
-  twai_transmit(&msg, pdMS_TO_TICKS(5));
-}
-
-void transmitET1() {
-  twai_message_t msg = {};
-  msg.extd = 1; msg.rtr = 0; msg.data_length_code = 8;
-  msg.identifier = makeJ1939Id(6, PGN_ET1, SOURCE_ADDR_ENGINE);
-  memset(msg.data, 0xFF, 8);
-  msg.data[0] = map(readFilteredADC(PIN_ENG_TMP, 2), 0, 4095, 0, 120) + 40;
-  twai_transmit(&msg, pdMS_TO_TICKS(5));
-}
-
-void transmitIC1() {
-  twai_message_t msg = {};
-  msg.extd = 1; msg.rtr = 0; msg.data_length_code = 8;
-  msg.identifier = makeJ1939Id(6, PGN_IC1, SOURCE_ADDR_ENGINE);
-  memset(msg.data, 0xFF, 8);
-  msg.data[1] = map(readFilteredADC(PIN_MAP, 3), 0, 4095, 0, 255) / 2;
-  twai_transmit(&msg, pdMS_TO_TICKS(5));
-}
-
-void transmitCCVS() {
-  twai_message_t msg = {};
-  msg.extd = 1; msg.rtr = 0; msg.data_length_code = 8;
-  msg.identifier = makeJ1939Id(6, PGN_CCVS, SOURCE_ADDR_ENGINE);
-  uint16_t raw_speed = map(readFilteredADC(PIN_SPEED, 4), 0, 4095, 0, 60) * 256;
-  memset(msg.data, 0xFF, 8);
-  msg.data[1] = raw_speed & 0xFF;
-  msg.data[2] = (raw_speed >> 8) & 0xFF;
-  twai_transmit(&msg, pdMS_TO_TICKS(5));
-}
-
-void transmitVEP1() {
-  twai_message_t msg = {};
-  msg.extd = 1; msg.rtr = 0; msg.data_length_code = 8;
-  msg.identifier = makeJ1939Id(6, PGN_VEP1, SOURCE_ADDR_ENGINE);
-  float volt_v = (map(readFilteredADC(PIN_VOLT, 5), 0, 4095, 0, 35000)) / 1000.0f;
-  uint16_t raw_volt = (uint16_t)(volt_v * 20.0f);
-  memset(msg.data, 0xFF, 8);
-  msg.data[4] = raw_volt & 0xFF;
-  msg.data[5] = (raw_volt >> 8) & 0xFF;
-  twai_transmit(&msg, pdMS_TO_TICKS(5));
 }
 
 // ------------------------------------------------------------------------------

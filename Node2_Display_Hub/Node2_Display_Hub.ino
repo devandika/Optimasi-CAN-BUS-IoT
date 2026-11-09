@@ -2,8 +2,7 @@
  * ==============================================================================
  * PROJEK : Simulator Dual-Node CAN-Bus ECU Caterpillar 950L (IoT Enhanced)
  * MODUL  : Node 2 - Display Hub, Cluster Controller & UART Forwarder
- * STANDAR: Hybrid OBD-II (0x7DF/0x7E8) & SAE J1939 (500 kbps) - Single-Core
- * Smooth HARDWARE: ESP32 DevKit V1 + Transceiver SN65HVD230 + TFT 3.5" ILI9488
+ * STANDAR: Master-Slave OBD-II (0x7DF/0x7E8) CAN Bus Standar (500 kbps) - Single-Core Smooth HARDWARE: ESP32 DevKit V1 + Transceiver SN65HVD230 + TFT 3.5" ILI9488
  * + Buzzer
  * ==============================================================================
  */
@@ -49,16 +48,6 @@ TFT_eSPI tft = TFT_eSPI();
 
 #define UART2_TX 17 // Kirim data JSON ke ESP 3 (RX2 pin 16 pada ESP 3)
 #define UART2_RX 16 // Terima data dari ESP 3 (opsional)
-
-// ------------------------------------------------------------------------------
-// DEFINISI PARAMETER GROUP NUMBER (PGN) SAE J1939
-// ------------------------------------------------------------------------------
-#define PGN_EEC1 61444 // 0xF004 - Engine RPM
-#define PGN_EEC2 61443 // 0xF003 - Engine Load
-#define PGN_ET1 65262  // 0xFEEE - Coolant Temp
-#define PGN_IC1 65270  // 0xFEF6 - MAP Boost
-#define PGN_CCVS 65265 // 0xFEF1 - Vehicle Speed
-#define PGN_VEP1 65271 // 0xFEF7 - System Voltage
 
 // ==========================================
 // STRUKTUR GEOMETRI LAYAR & VARIABEL SMOOTHING
@@ -1113,65 +1102,6 @@ void loop() {
         raw_volt_A = rx_msg.data[3];
         raw_volt_B = rx_msg.data[4];
         target_volt = ((raw_volt_A * 256.0f) + raw_volt_B) / 1000.0f;
-        if (!sync_volt) {
-          smooth_volt = target_volt;
-          sync_volt = true;
-        }
-        break;
-      }
-      }
-    }
-    // B. Format Extended SAE J1939 29-bit
-    else if (rx_msg.extd) {
-      uint32_t pgn = (rx_msg.identifier >> 8) & 0x3FFFF;
-      switch (pgn) {
-      case PGN_EEC1: {
-        uint16_t raw_j_rpm = rx_msg.data[3] | (rx_msg.data[4] << 8);
-        target_rpm = raw_j_rpm / 8;
-        if (!sync_rpm) {
-          smooth_rpm = target_rpm;
-          sync_rpm = true;
-        }
-        break;
-      }
-      case PGN_EEC2: {
-        target_load = rx_msg.data[2];
-        if (!sync_load) {
-          smooth_load = target_load;
-          sync_load = true;
-        }
-        break;
-      }
-      case PGN_ET1: {
-        raw_eng = rx_msg.data[0];
-        target_eng = (raw_eng >= 40) ? (raw_eng - 40) : 0;
-        if (!sync_eng) {
-          smooth_eng = target_eng;
-          sync_eng = true;
-        }
-        break;
-      }
-      case PGN_IC1: {
-        uint16_t boost_kpa = rx_msg.data[1] * 2;
-        target_map = (boost_kpa > 255) ? 255 : (uint8_t)boost_kpa;
-        if (!sync_map) {
-          smooth_map = target_map;
-          sync_map = true;
-        }
-        break;
-      }
-      case PGN_CCVS: {
-        uint16_t raw_spd = rx_msg.data[1] | (rx_msg.data[2] << 8);
-        target_speed = raw_spd / 256;
-        if (!sync_speed) {
-          smooth_speed = target_speed;
-          sync_speed = true;
-        }
-        break;
-      }
-      case PGN_VEP1: {
-        uint16_t raw_v = rx_msg.data[4] | (rx_msg.data[5] << 8);
-        target_volt = raw_v * 0.05f;
         if (!sync_volt) {
           smooth_volt = target_volt;
           sync_volt = true;
