@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { FileSpreadsheet, FileJson, Trash2, Clock } from "lucide-react";
+import { FileSpreadsheet, Trash2, Clock } from "lucide-react";
 import { levelOf, type Level, type ParamKey } from "@/lib/thresholds";
 
 export interface HistoryRow {
@@ -18,7 +18,7 @@ interface HistoryTableProps {
   rows: HistoryRow[];
   isRecording: boolean;
   onExportCsv: () => void;
-  onExportJson: () => void;
+  onExportJson?: () => void;
   onClear: () => void;
   className?: string;
 }
@@ -26,13 +26,21 @@ interface HistoryTableProps {
 /** Jumlah baris yang ditampilkan di layar. Semua baris tetap ikut diunduh. */
 const VISIBLE_ROWS = 300;
 
-const COLUMNS: { key: ParamKey; label: string; unit: string; float?: boolean }[] = [
-  { key: "rpm", label: "RPM", unit: "RPM" },
-  { key: "temp", label: "Temp", unit: "°C" },
-  { key: "load", label: "Engine Load", unit: "%" },
-  { key: "map", label: "Boost Pressure", unit: "kPa" },
-  { key: "spd", label: "Speed", unit: "km/j" },
-  { key: "volt", label: "Voltage", unit: "V", float: true },
+interface ColumnDef {
+  key: ParamKey;
+  line1?: string;
+  line2: string;
+  unit: string;
+  float?: boolean;
+}
+
+const COLUMNS: ColumnDef[] = [
+  { key: "rpm", line2: "RPM", unit: "RPM" },
+  { key: "temp", line2: "Temp", unit: "°C" },
+  { key: "load", line1: "Engine", line2: "Load", unit: "%" },
+  { key: "map", line1: "Boost", line2: "Pressure", unit: "kPa" },
+  { key: "spd", line2: "Speed", unit: "km/j" },
+  { key: "volt", line2: "Voltage", unit: "V", float: true },
 ];
 
 const CELL_STYLE: Record<Level, string> = {
@@ -68,7 +76,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
       <header className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4 sm:pb-3 landscape:py-2 landscape:px-3 flex flex-wrap items-center justify-between gap-2 shrink-0">
         <div className="min-w-0">
           <h2 className="text-sm sm:text-lg landscape:text-xs font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
-            Riwayat per detik
+            Riwayat Data
           </h2>
           <p className="text-xs sm:text-sm mt-0.5 flex items-center gap-1.5" style={{ color: "var(--text-muted)" }}>
             <Clock className="w-3.5 h-3.5" />
@@ -76,8 +84,8 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
               {isRecording
                 ? "Mencatat per detik"
                 : hasRows
-                ? "Riwayat database (offline)"
-                : "Menunggu data"}
+                  ? "Riwayat database (offline)"
+                  : "Menunggu data"}
             </span>
             <span className="sm:hidden">
               {isRecording ? "Aktif" : hasRows ? "Riwayat offline" : "Menunggu"}
@@ -96,17 +104,6 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
           >
             <FileSpreadsheet className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span>Excel</span>
-          </button>
-          <button
-            type="button"
-            onClick={onExportJson}
-            disabled={!hasRows}
-            className="min-h-[34px] sm:min-h-[40px] px-2.5 sm:px-3 rounded-lg text-xs sm:text-sm font-semibold glass-subtle inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ color: "var(--text-primary)" }}
-            title="Unduh semua riwayat sebagai file JSON"
-          >
-            <FileJson className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span>JSON</span>
           </button>
           <button
             type="button"
@@ -139,28 +136,46 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
               <tr className="border-b border-[var(--glass-outline)]">
                 <th
                   scope="col"
-                  className="w-[14.285%] text-left font-semibold px-2 sm:px-2.5 py-2 sm:py-2.5"
+                  className="w-[14.285%] text-left font-semibold px-2 sm:px-2.5 py-1.5 sm:py-2 align-bottom"
                   style={{ color: "var(--text-secondary)" }}
                 >
-                  <span className="block text-xs sm:text-[13px] font-bold">Jam</span>
-                  <span className="block text-[10px] sm:text-xs font-normal opacity-0 select-none" aria-hidden="true">
-                    -
-                  </span>
+                  <div className="flex flex-col justify-end text-left">
+                    <span className="text-[10px] sm:text-xs font-normal opacity-0 select-none leading-tight" aria-hidden="true">
+                      &nbsp;
+                    </span>
+                    <span className="text-xs sm:text-[13px] font-bold leading-tight">
+                      Jam
+                    </span>
+                    <span className="text-[10px] sm:text-xs font-normal opacity-0 select-none leading-tight" aria-hidden="true">
+                      -
+                    </span>
+                  </div>
                 </th>
                 {COLUMNS.map((c) => (
                   <th
                     key={c.key}
                     scope="col"
-                    className="w-[14.285%] text-right font-semibold px-2 sm:px-2.5 py-2 sm:py-2.5"
+                    className="w-[14.285%] text-right font-semibold px-2 sm:px-2.5 py-1.5 sm:py-2 align-bottom"
                     style={{ color: "var(--text-secondary)" }}
-                    title={`${c.label} (${c.unit})`}
+                    title={`${c.line1 ? `${c.line1} ` : ""}${c.line2} (${c.unit})`}
                   >
-                    <span className="block truncate text-xs sm:text-[13px] font-bold">
-                      {c.label}
-                    </span>
-                    <span className="block text-[10px] sm:text-xs font-medium text-[var(--text-muted)]">
-                      {c.unit}
-                    </span>
+                    <div className="flex flex-col justify-end text-right">
+                      {c.line1 ? (
+                        <span className="text-xs sm:text-[13px] font-bold leading-tight truncate">
+                          {c.line1}
+                        </span>
+                      ) : (
+                        <span className="text-xs sm:text-[13px] font-normal opacity-0 select-none leading-tight" aria-hidden="true">
+                          &nbsp;
+                        </span>
+                      )}
+                      <span className="text-xs sm:text-[13px] font-bold leading-tight truncate">
+                        {c.line2}
+                      </span>
+                      <span className="text-[10px] sm:text-xs font-medium text-[var(--text-muted)] leading-tight">
+                        {c.unit}
+                      </span>
+                    </div>
                   </th>
                 ))}
               </tr>
@@ -169,9 +184,8 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
               {visible.map((row, i) => (
                 <tr
                   key={`${row.updatedAt}-${i}`}
-                  className={`border-b border-[var(--glass-outline)] ${
-                    i === 0 ? "bg-[var(--glass-bg-subtle)]" : ""
-                  }`}
+                  className={`border-b border-[var(--glass-outline)] ${i === 0 ? "bg-[var(--glass-bg-subtle)]" : ""
+                    }`}
                 >
                   <td
                     className="w-[14.285%] px-2 sm:px-2.5 py-1.5 sm:py-2 text-left whitespace-nowrap font-medium text-[11px] sm:text-sm"

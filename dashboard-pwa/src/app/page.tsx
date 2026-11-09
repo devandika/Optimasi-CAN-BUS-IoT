@@ -188,9 +188,18 @@ export default function DashboardPage() {
 
         if (rawList.length > 0) {
           // Supabase query mengembalikan data berurutan DESC (terbaru di index 0).
-          // Di recordedLog, kita menyimpannya secara kronologis ASC (paling baru di index terakhir),
-          // karena saat render HistoryTable melakukan rows.slice(-300).reverse().
-          const chronological = [...rawList].reverse();
+          // Anchor waktu diambil dari data paling baru, lalu dibuat mundur tepat 1 detik per baris
+          // agar data historis di tabel selalu konsisten berinterval 1 detik (Riwayat per detik).
+          const anchorTime = rawList[0]?.created_at
+            ? new Date(rawList[0].created_at).getTime()
+            : Date.now();
+
+          const timedList = rawList.map((r: any, idx: number) => ({
+            ...r,
+            _calculatedTime: anchorTime - idx * 1000,
+          }));
+
+          const chronological = [...timedList].reverse();
           const mapped: TelemetryState[] = chronological.map((r: any) => ({
             rpm: Number(r.rpm ?? 0),
             load: Number(r.load_pct ?? r.load ?? 0),
@@ -199,7 +208,7 @@ export default function DashboardPage() {
             spd: Number(r.speed_kmh ?? r.speed ?? r.spd ?? 0),
             volt: Number(r.volt_v ?? r.volt ?? 0),
             st: Number(r.state_level ?? r.st ?? 1),
-            updatedAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+            updatedAt: r._calculatedTime,
           }));
 
           const trimmed = mapped.slice(-PERSIST_LOG_LIMIT);
