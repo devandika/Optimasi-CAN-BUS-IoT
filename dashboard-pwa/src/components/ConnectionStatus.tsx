@@ -7,6 +7,7 @@ interface ConnectionStatusProps {
   mqttConnected: boolean;
   gatewayOnline: boolean;
   brokerHost: string;
+  topicName?: string;
   /** Detik sejak data terakhir masuk, null jika belum pernah */
   secondsSinceData: number | null;
   packetCount?: number;
@@ -25,6 +26,7 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
   mqttConnected,
   gatewayOnline,
   brokerHost,
+  topicName,
   secondsSinceData,
   packetCount = 0,
   packetRate = 0,
@@ -58,31 +60,31 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
     setDeferredPrompt(null);
   };
 
-  const fresh = secondsSinceData !== null && secondsSinceData <= 5;
-  const deviceOk = gatewayOnline && fresh;
+  // Status Broker Online HANYA jika terhubung dan ada data aktif dari topik yang di-subscribe
+  const hasSubscribedData = mqttConnected && secondsSinceData !== null && secondsSinceData <= 5;
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
       <div
         className="glass-subtle min-h-[34px] sm:min-h-[42px] px-2.5 sm:px-3.5 py-1 flex items-center gap-2 sm:gap-3 text-xs sm:text-sm"
-        title={`Server: ${brokerHost}`}
+        title={`Server: ${brokerHost}${topicName ? ` · Topik: ${topicName}` : ""}`}
       >
         <span className="flex items-center gap-1.5 sm:gap-2">
           <span
             className={`relative w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${
-              mqttConnected ? "bg-emerald-500" : "bg-rose-500"
+              hasSubscribedData ? "bg-emerald-500" : "bg-rose-500"
             }`}
           />
           <span style={{ color: "var(--text-secondary)" }}>
             <span className="hidden sm:inline">Broker </span>
             <strong
               className={
-                mqttConnected
+                hasSubscribedData
                   ? "text-emerald-600 dark:text-emerald-400"
                   : "text-rose-600 dark:text-rose-400"
               }
             >
-              {mqttConnected ? "Online" : "Offline"}
+              {hasSubscribedData ? "Online" : "Offline"}
             </strong>
           </span>
         </span>
@@ -92,10 +94,10 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
         <span className="flex items-center gap-1.5 sm:gap-2">
           <span
             className={`relative w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${
-              deviceOk ? "bg-emerald-500 live-dot" : "bg-slate-400"
+              hasSubscribedData ? "bg-emerald-500 live-dot" : "bg-slate-400"
             }`}
           />
-          <span style={{ color: deviceOk ? "var(--text-secondary)" : "var(--text-muted)" }}>
+          <span style={{ color: hasSubscribedData ? "var(--text-secondary)" : "var(--text-muted)" }}>
             {describeAge(secondsSinceData)}
           </span>
         </span>

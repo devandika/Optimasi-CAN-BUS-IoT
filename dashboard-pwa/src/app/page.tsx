@@ -45,6 +45,9 @@ interface ActiveBrokerConfig {
   port: number;
   username: string;
   password: string;
+  topicTelemetry: string;
+  topicAlerts: string;
+  topicStatus: string;
 }
 
 // Riwayat per detik: 3600 baris = 1 jam terakhir dalam memori
@@ -72,6 +75,12 @@ const DEFAULT_BROKER: ActiveBrokerConfig = {
     process.env.NEXT_PUBLIC_EMQX_PASSWORD ||
     process.env.NEXT_PUBLIC_EMQX_PASS ||
     "",
+  topicTelemetry:
+    process.env.NEXT_PUBLIC_MQTT_TOPIC_TELEMETRY || "cat950l/telemetry",
+  topicAlerts:
+    process.env.NEXT_PUBLIC_MQTT_TOPIC_ALERTS || "cat950l/alerts",
+  topicStatus:
+    process.env.NEXT_PUBLIC_MQTT_TOPIC_STATUS || "cat950l/status",
 };
 
 function getStateLabel(st: number): string {
@@ -148,6 +157,15 @@ export default function DashboardPage() {
   const [draftPort, setDraftPort] = useState(String(DEFAULT_BROKER.port));
   const [draftUser, setDraftUser] = useState(DEFAULT_BROKER.username);
   const [draftPass, setDraftPass] = useState(DEFAULT_BROKER.password);
+  const [draftTopicTelemetry, setDraftTopicTelemetry] = useState(
+    DEFAULT_BROKER.topicTelemetry
+  );
+  const [draftTopicAlerts, setDraftTopicAlerts] = useState(
+    DEFAULT_BROKER.topicAlerts
+  );
+  const [draftTopicStatus, setDraftTopicStatus] = useState(
+    DEFAULT_BROKER.topicStatus
+  );
   const [configError, setConfigError] = useState<string>("");
   const [configSavedMsg, setConfigSavedMsg] = useState<string>("");
 
@@ -289,12 +307,27 @@ export default function DashboardPage() {
             username:
               typeof parsed.username === "string" ? parsed.username : "",
             password: savedPass,
+            topicTelemetry:
+              typeof parsed.topicTelemetry === "string" && parsed.topicTelemetry.trim()
+                ? parsed.topicTelemetry.trim()
+                : DEFAULT_BROKER.topicTelemetry,
+            topicAlerts:
+              typeof parsed.topicAlerts === "string" && parsed.topicAlerts.trim()
+                ? parsed.topicAlerts.trim()
+                : DEFAULT_BROKER.topicAlerts,
+            topicStatus:
+              typeof parsed.topicStatus === "string" && parsed.topicStatus.trim()
+                ? parsed.topicStatus.trim()
+                : DEFAULT_BROKER.topicStatus,
           };
           setActiveBroker(restored);
           setDraftHost(restored.host);
           setDraftPort(String(restored.port));
           setDraftUser(restored.username);
           setDraftPass(savedPass);
+          setDraftTopicTelemetry(restored.topicTelemetry);
+          setDraftTopicAlerts(restored.topicAlerts);
+          setDraftTopicStatus(restored.topicStatus);
         }
       }
     } catch {
@@ -349,11 +382,17 @@ export default function DashboardPage() {
       port: validation.sanitizedPort,
       username: draftUser.trim(),
       password: draftPass,
+      topicTelemetry: draftTopicTelemetry.trim() || DEFAULT_BROKER.topicTelemetry,
+      topicAlerts: draftTopicAlerts.trim() || DEFAULT_BROKER.topicAlerts,
+      topicStatus: draftTopicStatus.trim() || DEFAULT_BROKER.topicStatus,
     };
 
     setActiveBroker(nextConfig);
     setDraftHost(nextConfig.host);
     setDraftPort(String(nextConfig.port));
+    setDraftTopicTelemetry(nextConfig.topicTelemetry);
+    setDraftTopicAlerts(nextConfig.topicAlerts);
+    setDraftTopicStatus(nextConfig.topicStatus);
 
     try {
       localStorage.setItem(
@@ -362,6 +401,9 @@ export default function DashboardPage() {
           host: nextConfig.host,
           port: nextConfig.port,
           username: nextConfig.username,
+          topicTelemetry: nextConfig.topicTelemetry,
+          topicAlerts: nextConfig.topicAlerts,
+          topicStatus: nextConfig.topicStatus,
         })
       );
       if (nextConfig.password) {
@@ -372,13 +414,16 @@ export default function DashboardPage() {
     } catch {}
 
     setConfigSavedMsg(
-      `Terhubung ulang ke ${nextConfig.host}:${nextConfig.port} (WSS)`
+      `Terhubung ulang ke ${nextConfig.host}:${nextConfig.port} (Topik: ${nextConfig.topicTelemetry})`
     );
   };
 
   const handleSelectPreset = (presetHost: string, presetPort: number) => {
     setDraftHost(presetHost);
     setDraftPort(String(presetPort));
+    setDraftTopicTelemetry(DEFAULT_BROKER.topicTelemetry);
+    setDraftTopicAlerts(DEFAULT_BROKER.topicAlerts);
+    setDraftTopicStatus(DEFAULT_BROKER.topicStatus);
     setConfigError("");
     setConfigSavedMsg("");
   };
@@ -523,18 +568,19 @@ export default function DashboardPage() {
 
       mqttClientRef.current = client;
 
+      const topicTele = (activeBroker.topicTelemetry || "cat950l/telemetry").trim();
+      const topicAlerts = (activeBroker.topicAlerts || "cat950l/alerts").trim();
+      const topicStatus = (activeBroker.topicStatus || "cat950l/status").trim();
+
       client.on("connect", () => {
         setMqttConnected(true);
-        client.subscribe(
-          ["cat950l/telemetry", "cat950l/alerts", "cat950l/status"],
-          { qos: 1 }
-        );
+        client.subscribe([topicTele, topicAlerts, topicStatus], { qos: 1 });
       });
 
       client.on("message", (topic, message) => {
         const payloadStr = message.toString();
 
-        if (topic === "cat950l/status") {
+        if (topic === topicStatus || topic.endsWith("/status")) {
           try {
             const stObj = JSON.parse(payloadStr);
             setGatewayOnline(stObj?.status === "online");
@@ -543,7 +589,7 @@ export default function DashboardPage() {
           }
         }
 
-        if (topic === "cat950l/telemetry") {
+        if (topic === topicTele || topic.endsWith("/telemetry")) {
           const clean = sanitizeTelemetryPayload(payloadStr);
           const now = Date.now();
           const snapshot: TelemetryState = {
@@ -579,7 +625,7 @@ export default function DashboardPage() {
           }
         }
 
-        if (topic === "cat950l/alerts") {
+        if (topic === topicAlerts || topic.endsWith("/alerts")) {
           try {
             const alertObj = JSON.parse(payloadStr);
             const rawText =
@@ -633,6 +679,7 @@ export default function DashboardPage() {
             mqttConnected={mqttConnected}
             gatewayOnline={gatewayOnline}
             brokerHost={activeBroker.host}
+            topicName={activeBroker.topicTelemetry}
             secondsSinceData={secondsSinceData}
             packetCount={packetCount}
             packetRate={packetRate}
@@ -909,7 +956,7 @@ export default function DashboardPage() {
                   className="text-xs sm:text-sm font-medium"
                   style={{ color: "var(--text-secondary)" }}
                 >
-                  Server aktif: {activeBroker.host}:{activeBroker.port}
+                  Server: {activeBroker.host}:{activeBroker.port} · Topik: {activeBroker.topicTelemetry}
                 </p>
               </div>
             </div>
@@ -1021,6 +1068,84 @@ export default function DashboardPage() {
                   autoComplete="current-password"
                   className="w-full glass-input px-3.5 py-2.5 text-sm font-medium"
                 />
+              </div>
+            </div>
+
+            {/* ─── PENGATURAN TOPIK MQTT ─── */}
+            <div className="pt-3 border-t border-[var(--glass-border)] space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs sm:text-sm font-bold text-cat-yellow tracking-wide uppercase">
+                  Topik MQTT (Subscribe)
+                </span>
+                <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                  Sesuaikan dengan topik ESP32
+                </span>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="broker-topic-telemetry"
+                  className="block text-xs sm:text-sm font-semibold mb-1"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  Topik Telemetri Utama (Data Sensor)
+                </label>
+                <input
+                  id="broker-topic-telemetry"
+                  type="text"
+                  value={draftTopicTelemetry}
+                  onChange={(e) => setDraftTopicTelemetry(e.target.value)}
+                  placeholder="cat950l/telemetry"
+                  className="w-full glass-input px-3.5 py-2.5 text-sm font-medium"
+                  required
+                />
+                <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
+                  Default sistem: <code className="text-cat-yellow font-mono font-semibold">cat950l/telemetry</code> (RPM, Suhu, Beban, MAP, Speed, Voltase)
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label
+                    htmlFor="broker-topic-alerts"
+                    className="block text-xs font-semibold mb-1"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Topik Alerts / Peringatan
+                  </label>
+                  <input
+                    id="broker-topic-alerts"
+                    type="text"
+                    value={draftTopicAlerts}
+                    onChange={(e) => setDraftTopicAlerts(e.target.value)}
+                    placeholder="cat950l/alerts"
+                    className="w-full glass-input px-3 py-2 text-xs font-medium"
+                  />
+                  <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>
+                    Default: <code className="font-mono text-cat-yellow">cat950l/alerts</code>
+                  </p>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="broker-topic-status"
+                    className="block text-xs font-semibold mb-1"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Topik Status Gateway (LWT)
+                  </label>
+                  <input
+                    id="broker-topic-status"
+                    type="text"
+                    value={draftTopicStatus}
+                    onChange={(e) => setDraftTopicStatus(e.target.value)}
+                    placeholder="cat950l/status"
+                    className="w-full glass-input px-3 py-2 text-xs font-medium"
+                  />
+                  <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>
+                    Default: <code className="font-mono text-cat-yellow">cat950l/status</code>
+                  </p>
+                </div>
               </div>
             </div>
 
