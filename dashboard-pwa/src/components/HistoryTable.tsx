@@ -115,23 +115,23 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
       </header>
 
       {/* Tabel */}
-      <div className="flex-1 min-h-[140px] sm:min-h-[260px] overflow-auto border-t border-[var(--glass-outline)]">
+      <div className="flex-1 min-h-[160px] sm:min-h-[280px] landscape:min-h-0 overflow-auto border-t border-[var(--glass-outline)]">
         {hasRows ? (
-          <table className="w-full text-xs sm:text-sm tabular-nums border-collapse">
+          <table className="w-full text-sm tabular-nums border-collapse">
             <thead className="sticky top-0 z-10" style={{ background: "var(--glass-bg-elevated)" }}>
               <tr className="border-b border-[var(--glass-outline)]">
-                <th scope="col" className="text-left font-semibold px-2 sm:px-3 py-1.5 sm:py-2 whitespace-nowrap" style={{ color: "var(--text-secondary)" }}>
+                <th scope="col" className="text-left font-semibold px-3 py-2.5 whitespace-nowrap" style={{ color: "var(--text-secondary)" }}>
                   Jam
                 </th>
                 {COLUMNS.map((c) => (
                   <th
                     key={c.key}
                     scope="col"
-                    className="text-right font-semibold px-1.5 sm:px-2.5 py-1.5 sm:py-2 whitespace-nowrap"
+                    className="text-right font-semibold px-2.5 py-2.5 whitespace-nowrap"
                     style={{ color: "var(--text-secondary)" }}
                   >
                     {c.label}
-                    <span className="block text-[10px] sm:text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+                    <span className="block text-xs font-medium" style={{ color: "var(--text-muted)" }}>
                       {c.unit}
                     </span>
                   </th>
@@ -144,7 +144,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
                   key={row.updatedAt}
                   className={`border-b border-[var(--glass-outline)] ${i === 0 ? "bg-[var(--glass-bg-subtle)]" : ""}`}
                 >
-                  <td className="px-2 sm:px-3 py-1 sm:py-1.5 whitespace-nowrap font-medium text-[11px] sm:text-sm" style={{ color: "var(--text-muted)" }}>
+                  <td className="px-3 py-2 whitespace-nowrap font-medium" style={{ color: "var(--text-muted)" }}>
                     {formatClock(row.updatedAt)}
                   </td>
                   {COLUMNS.map((c) => {
@@ -153,7 +153,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
                     return (
                       <td
                         key={c.key}
-                        className={`px-1.5 sm:px-2.5 py-1 sm:py-1.5 text-right font-semibold whitespace-nowrap text-[11px] sm:text-sm ${CELL_STYLE[level]}`}
+                        className={`px-2.5 py-2 text-right font-semibold whitespace-nowrap ${CELL_STYLE[level]}`}
                         style={level === 1 ? { color: "var(--text-primary)" } : undefined}
                       >
                         {c.float ? v.toFixed(1) : Math.round(v)}
