@@ -1,7 +1,6 @@
 // Service Worker for CAT 950L Telemetry PWA
-const CACHE_NAME = 'cat950l-cache-v1';
+const CACHE_NAME = 'cat950l-cache-v2';
 const PRECACHE_ASSETS = [
-  '/',
   '/manifest.json',
   '/cat-icon.svg'
 ];
@@ -24,25 +23,45 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// Stale-While-Revalidate untuk aset statis, Network-First untuk data real-time
+// Network-First untuk navigasi HTML (agar deploy baru langsung tampil),
+// Stale-While-Revalidate untuk aset statis
 self.addEventListener('fetch', (event) => {
-  // Jangan cache request WebSocket atau API telemetri
-  if (event.request.url.includes('/api/') || event.request.url.startsWith('ws') || event.request.url.startsWith('wss')) {
+  const { request } = event;
+  if (
+    request.method !== 'GET' ||
+    request.url.includes('/api/') ||
+    request.url.startsWith('ws') ||
+    request.url.startsWith('wss')
+  ) {
+    return;
+  }
+
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const copy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(request))
+    );
     return;
   }
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request).then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
+    caches.match(request).then((cachedResponse) => {
+      const fetchPromise = fetch(request).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200 && request.url.startsWith(self.location.origin)) {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
+            cache.put(request, responseToCache);
           });
         }
         return networkResponse;
