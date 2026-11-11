@@ -24,63 +24,118 @@ Node 1 bertindak sebagai mesin virtual yang membaca 6 parameter analog dari pote
 
 ---
 
-## 2. Node 2: Display Hub, Alarm, & Forwarder (`Node2_Display_Hub.ino`)
+## 2. Node 2: Display Hub, Cluster Controller, & Forwarder (`Node2_Display_Hub.ino`)
 
-Node 2 menangkap frame SAE J1939 dari bus CAN pada Core 0, merender antarmuka dashboard pada TFT 3.5" ILI9488 di Core 1, mengontrol buzzer alarm, dan meneruskan data matang ke Node 3 via UART2.
+Node 2 menangkap frame SAE J1939 dari bus CAN pada Core 0, merender antarmuka dashboard pada TFT 3.5" ILI9488 di Core 1, menangani navigasi 3 tombol fisik, mengontrol buzzer alarm, dan meneruskan data matang ke Node 3 via UART2.
 
-| No | Nama Sinyal / Periferal | Pin ESP32 | Tipe Pin | Terhubung ke Komponen | Keterangan & Konfigurasi |
+| No | Nama Sinyal / Periferal | Pin ESP32 (Label Board) | Tipe Pin | Terhubung ke Komponen | Keterangan & Konfigurasi |
 | :---: | :--- | :---: | :---: | :--- | :--- |
-| **1** | **CAN Transmit (CTX)** | **GPIO 21** | TWAI TX (Digital Out) | Pin CTX Transceiver SN65HVD230 Node 2 | Jalur transmisi pengakuan CAN |
-| **2** | **CAN Receive (CRX)** | **GPIO 22** | TWAI RX (Digital In) | Pin CRX Transceiver SN65HVD230 Node 2 | Penerimaan frame SAE J1939 |
-| **3** | **TFT SCK (SPI Clock)** | **GPIO 18** | VSPI SCK (Hardware SPI) | Pin SCK / CLK Layar TFT ILI9488 | Sinyal clock serial kecepatan tinggi |
-| **4** | **TFT MOSI (Data In)** | **GPIO 23** | VSPI MOSI (Hardware SPI) | Pin SDI / MOSI Layar TFT ILI9488 | Transmisi data piksel display |
-| **5** | **TFT MISO (Data Out)** | **GPIO 19** | VSPI MISO (Hardware SPI) | Pin SDO / MISO Layar TFT ILI9488 | Pembacaan ID/register display |
-| **6** | **TFT CS (Chip Select)** | **GPIO 15** | Digital Out | Pin CS Layar TFT ILI9488 | Seleksi chip SPI display |
-| **7** | **TFT DC (Data/Command)**| **GPIO 2** | Digital Out | Pin DC / RS Layar TFT ILI9488 | Switch register data/instruksi |
-| **8** | **TFT RST (Reset)** | **GPIO 4** | Digital Out | Pin RESET Layar TFT ILI9488 | Reset modul display hardware |
+| **1** | **CAN Transmit (CTX)** | **GPIO 21 (D21)** | TWAI TX (Digital Out) | Pin CTX Transceiver SN65HVD230 Node 2 | Transmisi pengakuan / Request PGN 0xEA00 |
+| **2** | **CAN Receive (CRX)** | **GPIO 22 (D22)** | TWAI RX (Digital In) | Pin CRX Transceiver SN65HVD230 Node 2 | Penerimaan frame SAE J1939 29-bit |
+| **3** | **TFT SCK (SPI Clock)** | **GPIO 18 (D18)** | VSPI SCK (Hardware SPI) | Pin SCK / CLK Layar TFT ILI9488 | Sinyal clock serial SPI kecepatan tinggi |
+| **4** | **TFT MOSI (Data In)** | **GPIO 23 (D23)** | VSPI MOSI (Hardware SPI) | Pin SDI / MOSI Layar TFT ILI9488 | Transmisi data piksel display |
+| **5** | **TFT MISO (Data Out)** | **GPIO 19 (D19)** | VSPI MISO (Hardware SPI) | Pin SDO / MISO Layar TFT ILI9488 | Pembacaan register display |
+| **6** | **TFT CS (Chip Select)** | **GPIO 15 (D15)** | Digital Out | Pin CS Layar TFT ILI9488 | Seleksi chip SPI display |
+| **7** | **TFT DC (Data/Command)**| **GPIO 2 (D2)** | Digital Out | Pin DC / RS Layar TFT ILI9488 | Switch register data/instruksi |
+| **8** | **TFT RST (Reset)** | **GPIO 4 (D4)** | Digital Out | Pin RESET Layar TFT ILI9488 | Reset modul display hardware |
 | **9** | **TFT LED (Backlight)** | **3V3 / 5V** | Power | Pin LED Layar TFT ILI9488 | Lampu latar layar (via resistor/langsung) |
-| **10**| **Active Buzzer 5V** | **GPIO 13** | Digital (Tri-State Hi-Z) | Pin I/O Modul Active Buzzer Active-LOW | Tri-State: INPUT = Mati, OUTPUT LOW = Nyala |
-| **11**| **UART2 TX (Data Stream)**| **GPIO 17** | Serial2 TXD (Digital Out)| Pin **GPIO 16 (RX2)** pada **ESP 3** | Mengirimkan string telemetri JSON kontinu |
-| **12**| **UART2 RX (Handshake)** | **GPIO 16** | Serial2 RXD (Digital In) | Pin **GPIO 17 (TX2)** pada **ESP 3** | Menerima status ack dari ESP 3 (*opsional*) |
-| **13**| **VCC 5V / VIN** | **VIN (5V)**| Power Output / Input | VCC Layar TFT & VCC Active Buzzer | Sumber daya backlight & buzzer 5V |
-| **14**| **Ground** | **GND** | Power Ground | GND Transceiver, TFT, Buzzer, dan ESP 3 | Wajib terhubung menyatu (*Common Ground*) |
+| **10**| **Tombol [ < PREV ]** | **GPIO 14 (D14)** | Digital In (INPUT_PULLUP) | Push Button 1 (Kaki A: D14, Kaki B: GND) | Pindah Halaman Mundur (3 ⬅️ 2 ⬅️ 1 ⬅️ 3) |
+| **11**| **Tombol [ ● OK / ACT ]**| **GPIO 32 (D32)** | Digital In (INPUT_PULLUP) | Push Button 2 (Kaki A: D32, Kaki B: GND) | Aksi (Hal 1: Mute Buzzer, Hal 2: Reset CAN, Hal 3: Refresh IoT) |
+| **12**| **Tombol [ NEXT > ]** | **GPIO 27 (D27)** | Digital In (INPUT_PULLUP) | Push Button 3 (Kaki A: D27, Kaki B: GND) | Pindah Halaman Maju (1 ➡️ 2 ➡️ 3 ➡️ 1) |
+| **13**| **Active Buzzer 5V** | **GPIO 13 (D13)** | Digital (Tri-State Hi-Z) | Pin I/O Modul Active Buzzer Active-LOW | Tri-State: INPUT = Mati, OUTPUT LOW = Nyala |
+| **14**| **UART2 TX (Opsional)**| **GPIO 17 (TX2)** | Serial2 TXD (Digital Out)| Tidak Terpakai (Bebas)     | Sebelumnya ke RX2 ESP 3 (Kini via Bus CAN) |
+| **15**| **UART2 RX (Opsional)**| **GPIO 16 (RX2)** | Serial2 RXD (Digital In) | Tidak Terpakai (Bebas)     | Sebelumnya dari TX2 ESP 3 (Kini via Bus CAN) |
+| **16**| **VCC 5V / VIN** | **VIN (5V)**| Power Output / Input | VCC Layar TFT & VCC Active Buzzer | Sumber daya backlight & buzzer 5V |
+| **17**| **Ground** | **GND** | Power Ground | GND Transceiver, TFT, Buzzer, Tombol, & Common Bus | Wajib terhubung menyatu (*Common Ground*) |
 
 ---
 
 ## 3. Node 3: IoT Gateway CAN to MQTT (`Node3_IoT_Gateway.ino`)
 
-Node 3 membaca stream UART2 dari Node 2 pada Core 1, mem-package payload MQTT, dan mengunggahnya dengan QoS 1 ke EMQX Cloud melalui koneksi Wi-Fi pada Core 0.
+Node 3 terhubung langsung ke modul transceiver CAN **SN65HVD230** untuk menangkap sinyal diferensial `CAN_H` dan `CAN_L` langsung dari bus fisik. Core 1 menjalankan ingestion & decoder SAE J1939 via driver TWAI ESP32, mem-package payload MQTT, dan Core 0 mengunggahnya dengan QoS 1 ke EMQX Cloud melalui koneksi Wi-Fi.
 
 | No | Nama Sinyal / Periferal | Pin ESP32 | Tipe Pin | Terhubung ke Komponen | Keterangan & Protokol |
 | :---: | :--- | :---: | :---: | :--- | :--- |
-| **1** | **UART2 RX (Data In)** | **GPIO 16** | Serial2 RXD (Digital In) | Pin **GPIO 17 (TX2)** pada **ESP 2** | Ingestion stream telemetri JSON dari ESP 2 |
-| **2** | **UART2 TX (Status Out)**| **GPIO 17** | Serial2 TXD (Digital Out)| Pin **GPIO 16 (RX2)** pada **ESP 2** | Pengiriman status gateway (*opsional*) |
+| **1** | **CAN Transmit (CTX)** | **GPIO 21** | TWAI TX (Digital Out) | Pin CTX / TXD Transceiver SN65HVD230 Node 3 | Transmisi pengakuan / Request PGN 0xEA00 & Broadcast Status |
+| **2** | **CAN Receive (CRX)** | **GPIO 22** | TWAI RX (Digital In) | Pin CRX / RXD Transceiver SN65HVD230 Node 3 | Penerimaan frame SAE J1939 29-bit dari bus |
 | **3** | **Status Indicator LED** | **GPIO 2** | Digital Out | Onboard Blue LED ESP32 | Kedip: Mencari Wi-Fi / Broker, Solid: Terhubung MQTT |
 | **4** | **Serial Monitor / Debug**| **TX0 / RX0** | UART0 (USB Serial) | Komputer / PC (Baud 115200) | Debugging serial log runtime gateway |
-| **5** | **Ground** | **GND** | Power Ground | Pin GND ESP 2 & Catu Daya Bersama | Referensi level tegangan sinyal UART |
-| **6** | **Power Supply** | **VIN (5V) / USB**| Power In | Kabel USB 5V / Adaptor 5V | Sumber daya utama ESP 3 |
+| **5** | **VCC 3.3V Logic** | **3V3** | Power Output | Pin VCC Transceiver SN65HVD230 Node 3 | Daya logika transceiver 3.3V |
+| **6** | **Ground** | **GND** | Power Ground | Pin GND Transceiver SN65HVD230 & Common Bus | Wajib menyatu ke Common Ground seluruh node |
+| **7** | **Power Supply** | **VIN (5V) / USB**| Power In | Kabel USB 5V / Adaptor 5V | Sumber daya utama ESP 3 |
 
 ---
 
-## 4. Diagram Sambungan Antar-Node (Inter-Node Wiring)
+## 4. Diagram Sambungan Antar-Node (Multi-Drop CAN Bus Topology)
 
+Ketiga ESP32 kini terhubung secara paralel pada satu bus diferensial 2 kawat fisik (`CAN_H` dan `CAN_L`):
+
+```text
+[ ESP 1: ECU ]                 [ ESP 2: Display Hub ]            [ ESP 3: IoT Gateway ]
+GPIO 21 (CTX) ──► CTX #1       GPIO 21 (CTX) ──► CTX #2          GPIO 21 (CTX) ──► CTX #3
+GPIO 22 (CRX) ◄── CRX #1       GPIO 22 (CRX) ◄── CRX #2          GPIO 22 (CRX) ◄── CRX #3
+
+SN65 #1 CAN_H ═════════════════╦═════════════════════════════════► SN65 #3 CAN_H
+                               ║
+                               ╠═════════════════════════════════► SN65 #2 CAN_H
+SN65 #1 CAN_L ═════════════════╬═════════════════════════════════► SN65 #3 CAN_L
+                               ║
+                               ╚═════════════════════════════════► SN65 #2 CAN_L
+
+GND ───────────────────────────╩───────────────────────────────── GND (Common Ground)
 ```
-[ ESP 1: ECU ]                 [ ESP 2: Display ]                [ ESP 3: Gateway ]
-GPIO 21 (CTX) ──► CTX SN65 #1
-GPIO 22 (CRX) ◄── CRX SN65 #1
 
-SN65 #1 CAN_H ═════════════════► SN65 #2 CAN_H
-SN65 #1 CAN_L ═════════════════► SN65 #2 CAN_L
-                                 SN65 #2 CTX ◄── GPIO 21 (CTX)
-                                 SN65 #2 CRX ──► GPIO 22 (CRX)
+---
 
-                                 GPIO 17 (TX2) ──────────────────► GPIO 16 (RX2)
-                                 GPIO 16 (RX2) ◄────────────────── GPIO 17 (TX2)
+## 5. Peta Fisik Pinout ESP32 30-Pin Node 2 (Display Hub)
 
-GND ──────────────────────────── GND ──────────────────────────── GND (Common Ground)
+Sesuai foto layout modul **ESP32 DevKit V1 30-Pin**, berikut adalah panduan posisi fisik pin kiri dan kanan beserta kabel periferal yang terpasang:
+
+```text
+                     ESP32 DEVKIT V1 (30 PIN) - NODE 2
+                               +-----------+
+                          EN --| 1      30 |-- D23  ──► TFT MOSI (SDI)
+                     (NC) VP --| 2      29 |-- D22  ──► CAN CRX (SN65HVD230)
+                     (NC) VN --| 3      28 |-- TX0  ──► USB Debug Serial TX
+                    (NC) D34 --| 4      27 |-- RX0  ──► USB Debug Serial RX
+                    (NC) D35 --| 5      26 |-- D21  ──► CAN CTX (SN65HVD230)
+     Tombol OK ──►       D32 --| 6      25 |-- D19  ──► TFT MISO (SDO)
+                    (NC) D33 --| 7      24 |-- D18  ──► TFT SCK (CLK)
+                    (NC) D25 --| 8      23 |-- D5   ──  (NC)
+                    (NC) D26 --| 9      22 |-- TX2  ──  (NC / Bebas)
+   Tombol NEXT ──►       D27 --| 10     21 |-- RX2  ──  (NC / Bebas)
+   Tombol PREV ──►       D14 --| 11     20 |-- D4   ──► TFT RESET (RST)
+                    (NC) D12 --| 12     19 |-- D2   ──► TFT Data/Command (DC)
+ Active Buzzer ──►       D13 --| 13     18 |-- D15  ──► TFT Chip Select (CS)
+   Common GND  ──►       GND --| 14     17 |-- GND  ──► Ground Layar TFT
+ Catu Daya VIN ──►       VIN --| 15     16 |-- 3V3  ──► VCC Layar TFT / Logic
+                               +-----------+
+                                  [ USB ]
 ```
+
+### Panduan Pengkabelan 3 Push Button Fisik (INPUT_PULLUP):
+Tombol menggunakan resistor pull-up internal ESP32, sehingga **TIDAK MEMERLUKAN RESISTOR FISIK TAMBAHAN**.
+
+```text
+1. [ Tombol PREV (Hal 3 <- 2 <- 1 <- 3) ] :
+   - Kaki A ──► Pin D14 (GPIO 14, Pin ke-11 Kiri)
+   - Kaki B ──► Pin GND (Pin ke-14 Kiri)
+
+2. [ Tombol OK / ACTION (Mute/Reset/Refresh) ] :
+   - Kaki A ──► Pin D32 (GPIO 32, Pin ke-6 Kiri)
+   - Kaki B ──► Pin GND (Pin ke-14 Kiri)
+
+3. [ Tombol NEXT (Hal 1 -> 2 -> 3 -> 1) ] :
+   - Kaki A ──► Pin D27 (GPIO 27, Pin ke-10 Kiri)
+   - Kaki B ──► Pin GND (Pin ke-14 Kiri)
+```
+
+> 💡 **Tips Pemasangan Push Button 4 Kaki (Tactile Switch):**
+> * Hubungkan dua kabel jumper secara **diagonal berseberangan** (misal kaki kiri atas ke GPIO, kaki kanan bawah ke GND) agar terhindar dari salah sambung pasangan kaki internal sakelar.
+
+---
 
 > ⚠️ **Catatan Penting Pemasangan:**
 > 1. Pin `GPIO 34` dan `GPIO 35` pada ESP 1 adalah pin *Input Only* (tanpa internal pullup/pulldown), sangat ideal digunakan murni sebagai input ADC analog.
-> 2. Antara ESP 2 dan ESP 3 **tidak memerlukan komponen tambahan**, cukup sambungan langsung kabel jumper `TX2 -> RX2`, `RX2 <- TX2`, dan `GND <-> GND`.
-> 3. Resistor terminasi $120\ \Omega$ pada bus CAN wajib aktif pada ujung bus (modul SN65HVD230).
+> 2. Ketiga ESP32 (Node 1, Node 2, dan Node 3) terhubung pada satu bus CAN bersama (`CAN_H`, `CAN_L`, dan Common `GND`). Tidak ada kabel serial UART antar ESP.
+> 3. Resistor terminasi $120\ \Omega$ pada bus CAN wajib aktif HANYA pada 2 titik ujung fisik bus (misal modul SN65HVD230 pada Node 1 dan Node 3). Node 2 di tengah bus tidak perlu terminasi tambahan agar impedansi ekuivalen bus tetap $60\ \Omega$.

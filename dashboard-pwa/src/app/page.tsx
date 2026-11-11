@@ -4,13 +4,18 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { GaugeCard } from "@/components/GaugeCard";
 import { HistoryTable } from "@/components/HistoryTable";
 import { AlertBanner } from "@/components/AlertBanner";
-import { levelOf, overallLevel, type Level } from "@/lib/thresholds";
+import { ParameterToastStack } from "@/components/ParameterToastStack";
+import {
+  levelOf,
+  overallLevel,
+  getActiveParameterAlerts,
+  type Level,
+} from "@/lib/thresholds";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
 import {
   createBrowserMqttClient,
   validateBrokerConfig,
   sanitizeTelemetryPayload,
-  sanitizeAlertMessage,
 } from "@/lib/mqttClient";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import { soundAlarm } from "@/lib/soundAlarm";
@@ -134,7 +139,6 @@ export default function DashboardPage() {
   // Connection & Packet Stats
   const [mqttConnected, setMqttConnected] = useState(false);
   const [gatewayOnline, setGatewayOnline] = useState(false);
-  const [lastAlert, setLastAlert] = useState<string>("");
   const [packetCount, setPacketCount] = useState(0);
   const [packetRate, setPacketRate] = useState(0);
   const packetCountRef = useRef(0);
@@ -144,9 +148,11 @@ export default function DashboardPage() {
   // Audio Alarm Mute State
   const [isMuted, setIsMuted] = useState<boolean>(() => soundAlarm.isMuted());
 
-  // UI Modal Controls
+  // UI Modal & Boot Controls
+  const [bootDone, setBootDone] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const handleBootComplete = useCallback(() => setBootDone(true), []);
 
   // Active Broker Config
   const [activeBroker, setActiveBroker] =
@@ -534,18 +540,7 @@ export default function DashboardPage() {
   const isRecording = !noData;
 
   const overall: Level = overallLevel(telemetry);
-  const problemNames = (
-    [
-      ["Engine Speed (RPM)", stateRpm],
-      ["Engine Temp", stateTemp],
-      ["Engine Load", stateLoad],
-      ["Boost Pressure", stateMap],
-      ["Speed", stateSpeed],
-      ["System Voltage", stateVolt],
-    ] as [string, Level][]
-  )
-    .filter(([, lv]) => lv === overall && lv >= 2)
-    .map(([name]) => name);
+  const parameterAlerts = noData ? [] : getActiveParameterAlerts(telemetry);
 
   // Audio Alarm Controller: bersuara jika warning (lv 2) atau critical (lv 3)
   useEffect(() => {
@@ -624,19 +619,6 @@ export default function DashboardPage() {
             }).catch(() => {});
           }
         }
-
-        if (topic === topicAlerts || topic.endsWith("/alerts")) {
-          try {
-            const alertObj = JSON.parse(payloadStr);
-            const rawText =
-              typeof alertObj?.event === "string"
-                ? `${alertObj.event}: ${JSON.stringify(alertObj.raw ?? "")}`
-                : payloadStr;
-            setLastAlert(sanitizeAlertMessage(rawText));
-          } catch {
-            setLastAlert(sanitizeAlertMessage(payloadStr));
-          }
-        }
       });
 
       client.on("close", () => setMqttConnected(false));
@@ -658,7 +640,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen lg:h-screen landscape:h-screen lg:w-screen landscape:w-screen lg:overflow-hidden landscape:overflow-hidden flex flex-col">
       {/* ─── Caterpillar 950L Boot Animation (Hanya muncul sekali per sesi) ─── */}
-      <BootIntro />
+      <BootIntro onComplete={handleBootComplete} />
 
       {/* ─── Header ─── */}
       <header className="glass-elevated shrink-0 px-3 py-2 sm:px-6 sm:py-3 landscape:py-1.5 landscape:px-4 flex flex-wrap items-center justify-between gap-2 sm:gap-3 z-20">
@@ -745,8 +727,6 @@ export default function DashboardPage() {
             <AlertBanner
               state={overall}
               waiting={noData}
-              problemNames={problemNames}
-              lastAlertMessage={lastAlert}
             />
           </div>
 
@@ -1174,6 +1154,8 @@ export default function DashboardPage() {
           </form>
         </div>
       </div>
+      {/* ═══════════ POP-UP NOTIFIKASI PARAMETER (KIRI BAWAH) ═══════════ */}
+      <ParameterToastStack alerts={parameterAlerts} visible={bootDone} />
     </div>
   );
 }

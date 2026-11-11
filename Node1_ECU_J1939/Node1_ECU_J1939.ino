@@ -1,8 +1,8 @@
 /**
  * ==============================================================================
- * PROJEK : Simulator Dual-Node CAN-Bus ECU Caterpillar 950L (IoT Enhanced)
+ * PROJEK : Simulator Dual-Node SAE J1939 ECU Caterpillar 950L (IoT Enhanced)
  * MODUL  : Node 1 - Electronic Control Unit (ECU) Simulator
- * STANDAR: Master-Slave OBD-II (0x7DF/0x7E8) CAN Bus Standar (@ 500 kbps)
+ * STANDAR: SAE J1939 (29-bit Extended Identifier @ 500 kbps)
  * HARDWARE: ESP32 DevKit V1 + Transceiver CAN SN65HVD230 + 6x Potensiometer 10k
  * ==============================================================================
  */
@@ -47,7 +47,20 @@ unsigned long wifiConnectStart = 0;
 #define TX_PIN 21       // Terhubung ke CTX / TXD SN65HVD230
 #define RX_PIN 22       // Terhubung ke CRX / RXD SN65HVD230
 
-// Waktu terakhir menerima request CAN dari Node 2 (untuk Watchdog Auto-Reset)
+// ------------------------------------------------------------------------------
+// DEFINISI PARAMETER GROUP NUMBER (PGN) PROTOKOL SAE J1939
+// ------------------------------------------------------------------------------
+#define PGN_REQUEST 59904 // 0xEA00 - SAE J1939 Request PGN
+#define PGN_EEC1    61444 // 0xF004 - Electronic Engine Controller 1 (RPM, SPN 190)
+#define PGN_EEC2    61443 // 0xF003 - Electronic Engine Controller 2 (Engine Load, SPN 92)
+#define PGN_ET1     65262 // 0xFEEE - Engine Temperature 1 (Coolant Temp, SPN 110)
+#define PGN_IC1     65270 // 0xFEF6 - Intake/Exhaust Conditions 1 (MAP Boost, SPN 102)
+#define PGN_CCVS    65265 // 0xFEF1 - Cruise Control / Vehicle Speed (Ground Speed, SPN 84)
+#define PGN_VEP1    65271 // 0xFEF7 - Vehicle Electrical Power 1 (System Voltage, SPN 168)
+
+#define SOURCE_ADDR_ENGINE 0x00 // Source Address (SA) standar Engine #1 SAE J1939
+
+// Waktu terakhir menerima request J1939 dari Node 2 (untuk Watchdog Auto-Reset)
 unsigned long lastRxFromNode2 = 0;
 unsigned long lastWatchdogCheck = 0;
 
@@ -79,6 +92,16 @@ void resetTWAI() {
 }
 
 // ------------------------------------------------------------------------------
+// FUNGSI PEMBENTUK 29-BIT EXTENDED IDENTIFIER SAE J1939
+// Format 29-bit: [Priority (3b)] [Reserved/DP (2b)] [PF (8b)] [PS (8b)] [SA (8b)]
+// ------------------------------------------------------------------------------
+uint32_t makeJ1939Id(uint8_t priority, uint32_t pgn, uint8_t sourceAddress) {
+  return ((uint32_t)(priority & 0x07) << 26) |
+         ((uint32_t)(pgn & 0x3FFFF) << 8) |
+         ((uint32_t)(sourceAddress & 0xFF));
+}
+
+// ------------------------------------------------------------------------------
 // FUNGSI PEMBACAAN ADC DENGAN MULTISAMPLING + EMA SMOOTHING
 // ------------------------------------------------------------------------------
 int readFilteredADC(int pin, int chIdx) {
@@ -106,68 +129,113 @@ int readFilteredADC(int pin, int chIdx) {
 }
 
 // ------------------------------------------------------------------------------
-// FUNGSI RESPON OBD-II (SAMA PERSIS DENGAN ProgramFinalNode1)
-// Node 1 HANYA memancarkan frame saat diminta oleh Node 2 -> Bebas tabrakan bus
+// FUNGSI TRANSMISI FRAME SAE J1939 (29-BIT EXTENDED IDENTIFIER)
+// Node 1 memancarkan PGN SAE J1939 saat diminta oleh Node 2 -> Bebas tabrakan bus
 // dan aman 100% walaupun Node 1 dicolok ke power lebih dulu!
 // ------------------------------------------------------------------------------
-void sendOBDResponse(uint8_t pid) {
-  // Bersihkan antrean TX jika ada sisa frame yang belum terkirim sebelumnya
+void transmitEEC1() {
+  // PGN 61444 (0xF004) - Priority 3, SA 0x00 -> ID: 0x0CF00400
+  // SPN 190 (Engine Speed): Resolusi 0.125 rpm/bit, Byte 4-5 (index 3 LSB, 4 MSB)
   twai_clear_transmit_queue();
+  twai_message_t msg = {};
+  msg.extd = 1;
+  msg.rtr = 0;
+  msg.data_length_code = 8;
+  msg.identifier = makeJ1939Id(3, PGN_EEC1, SOURCE_ADDR_ENGINE);
+  uint16_t rpm = map(readFilteredADC(PIN_RPM, 0), 0, 4095, 0, 3000);
+  uint16_t raw_rpm = rpm * 8;
+  memset(msg.data, 0xFF, 8);
+  msg.data[3] = (uint8_t)(raw_rpm & 0xFF);
+  msg.data[4] = (uint8_t)((raw_rpm >> 8) & 0xFF);
+  twai_transmit(&msg, pdMS_TO_TICKS(10));
+}
 
-  twai_message_t tx_msg = {};
-  tx_msg.identifier = 0x7E8;
-  tx_msg.extd = 0;
-  tx_msg.rtr = 0;
-  tx_msg.data_length_code = 8;
-  tx_msg.data[1] = 0x41;
-  tx_msg.data[2] = pid;
-  for (int i = 3; i < 8; i++) tx_msg.data[i] = 0x55;
+void transmitEEC2() {
+  // PGN 61443 (0xF003) - Priority 3, SA 0x00 -> ID: 0x0CF00300
+  // SPN 92 (Engine Percent Load): Resolusi 1 %/bit (0-100%), Byte 3 (index 2)
+  twai_clear_transmit_queue();
+  twai_message_t msg = {};
+  msg.extd = 1;
+  msg.rtr = 0;
+  msg.data_length_code = 8;
+  msg.identifier = makeJ1939Id(3, PGN_EEC2, SOURCE_ADDR_ENGINE);
+  memset(msg.data, 0xFF, 8);
+  msg.data[2] = (uint8_t)map(readFilteredADC(PIN_LOAD, 1), 0, 4095, 0, 100);
+  twai_transmit(&msg, pdMS_TO_TICKS(10));
+}
 
-  switch (pid) {
-    case 0x0C: { // RPM (0 - 3000)
-      int valRPM = readFilteredADC(PIN_RPM, 0);
-      uint32_t obd_rpm = map(valRPM, 0, 4095, 0, 3000) * 4;
-      tx_msg.data[0] = 4;
-      tx_msg.data[3] = (obd_rpm >> 8) & 0xFF;
-      tx_msg.data[4] = obd_rpm & 0xFF;
-      break;
-    }
-    case 0x04: { // LOAD (0 - 100%)
-      int valLoad = readFilteredADC(PIN_LOAD, 1);
-      tx_msg.data[0] = 3;
-      tx_msg.data[3] = map(valLoad, 0, 4095, 0, 255);
-      break;
-    }
-    case 0x05: { // ENG TEMP (0 - 120°C)
-      int valEng = readFilteredADC(PIN_ENG_TMP, 2);
-      tx_msg.data[0] = 3;
-      tx_msg.data[3] = map(valEng, 0, 4095, 0, 120) + 40;
-      break;
-    }
-    case 0x0B: { // MAP BOOST (0 - 255 kPa)
-      int valMap = readFilteredADC(PIN_MAP, 3);
-      tx_msg.data[0] = 3;
-      tx_msg.data[3] = map(valMap, 0, 4095, 0, 255);
-      break;
-    }
-    case 0x0D: { // SPEED (0 - 60 KM/H)
-      int valSpeed = readFilteredADC(PIN_SPEED, 4);
-      tx_msg.data[0] = 3;
-      tx_msg.data[3] = map(valSpeed, 0, 4095, 0, 60);
-      break;
-    }
-    case 0x42: { // VOLTAGE (0V - 35.0V)
-      int valVolt = readFilteredADC(PIN_VOLT, 5);
-      uint16_t volt_mv = map(valVolt, 0, 4095, 0, 35000);
-      tx_msg.data[0] = 4;
-      tx_msg.data[3] = (volt_mv >> 8) & 0xFF;
-      tx_msg.data[4] = volt_mv & 0xFF;
-      break;
-    }
-    default:
-      return;
+void transmitET1() {
+  // PGN 65262 (0xFEEE) - Priority 6, SA 0x00 -> ID: 0x18FEEE00
+  // SPN 110 (Engine Coolant Temp): Resolusi 1 C/bit, Offset -40 C, Byte 1 (index 0)
+  twai_clear_transmit_queue();
+  twai_message_t msg = {};
+  msg.extd = 1;
+  msg.rtr = 0;
+  msg.data_length_code = 8;
+  msg.identifier = makeJ1939Id(6, PGN_ET1, SOURCE_ADDR_ENGINE);
+  memset(msg.data, 0xFF, 8);
+  msg.data[0] = (uint8_t)(map(readFilteredADC(PIN_ENG_TMP, 2), 0, 4095, 0, 120) + 40);
+  twai_transmit(&msg, pdMS_TO_TICKS(10));
+}
+
+void transmitIC1() {
+  // PGN 65270 (0xFEF6) - Priority 6, SA 0x00 -> ID: 0x18FEF600
+  // SPN 102 (Engine Intake Manifold #1 Pressure / Boost): Resolusi 2 kPa/bit, Byte 2 (index 1)
+  twai_clear_transmit_queue();
+  twai_message_t msg = {};
+  msg.extd = 1;
+  msg.rtr = 0;
+  msg.data_length_code = 8;
+  msg.identifier = makeJ1939Id(6, PGN_IC1, SOURCE_ADDR_ENGINE);
+  memset(msg.data, 0xFF, 8);
+  uint16_t kpa = (uint16_t)map(readFilteredADC(PIN_MAP, 3), 0, 4095, 0, 255);
+  msg.data[1] = (uint8_t)((kpa + 1) / 2);
+  twai_transmit(&msg, pdMS_TO_TICKS(10));
+}
+
+void transmitCCVS() {
+  // PGN 65265 (0xFEF1) - Priority 6, SA 0x00 -> ID: 0x18FEF100
+  // SPN 84 (Wheel-Based Vehicle Speed): Resolusi 1/256 km/h/bit, Byte 2-3 (index 1 LSB, 2 MSB)
+  twai_clear_transmit_queue();
+  twai_message_t msg = {};
+  msg.extd = 1;
+  msg.rtr = 0;
+  msg.data_length_code = 8;
+  msg.identifier = makeJ1939Id(6, PGN_CCVS, SOURCE_ADDR_ENGINE);
+  uint16_t raw_speed = (uint16_t)map(readFilteredADC(PIN_SPEED, 4), 0, 4095, 0, 60) * 256;
+  memset(msg.data, 0xFF, 8);
+  msg.data[1] = (uint8_t)(raw_speed & 0xFF);
+  msg.data[2] = (uint8_t)((raw_speed >> 8) & 0xFF);
+  twai_transmit(&msg, pdMS_TO_TICKS(10));
+}
+
+void transmitVEP1() {
+  // PGN 65271 (0xFEF7) - Priority 6, SA 0x00 -> ID: 0x18FEF700
+  // SPN 168 (Battery Potential / System Voltage): Resolusi 0.05 V/bit, Byte 5-6 (index 4 LSB, 5 MSB)
+  twai_clear_transmit_queue();
+  twai_message_t msg = {};
+  msg.extd = 1;
+  msg.rtr = 0;
+  msg.data_length_code = 8;
+  msg.identifier = makeJ1939Id(6, PGN_VEP1, SOURCE_ADDR_ENGINE);
+  float volt_v = (map(readFilteredADC(PIN_VOLT, 5), 0, 4095, 0, 35000)) / 1000.0f;
+  uint16_t raw_volt = (uint16_t)(volt_v * 20.0f + 0.5f);
+  memset(msg.data, 0xFF, 8);
+  msg.data[4] = (uint8_t)(raw_volt & 0xFF);
+  msg.data[5] = (uint8_t)((raw_volt >> 8) & 0xFF);
+  twai_transmit(&msg, pdMS_TO_TICKS(10));
+}
+
+void transmitJ1939PGN(uint32_t requestedPgn) {
+  switch (requestedPgn) {
+    case PGN_EEC1: transmitEEC1(); break;
+    case PGN_EEC2: transmitEEC2(); break;
+    case PGN_ET1:  transmitET1();  break;
+    case PGN_IC1:  transmitIC1();  break;
+    case PGN_CCVS: transmitCCVS(); break;
+    case PGN_VEP1: transmitVEP1(); break;
+    default: break;
   }
-  twai_transmit(&tx_msg, pdMS_TO_TICKS(10));
 }
 
 // ------------------------------------------------------------------------------
@@ -255,12 +323,19 @@ void setup() {
 void loop() {
   unsigned long now = millis();
 
-  // 1. Terima request 0x7DF dari Node 2 & balas 0x7E8 seketika (Persis ProgramFinalNode1)
+  // 1. Terima Request PGN SAE J1939 (PGN 59904 / 0xEA00, 29-bit Extended) dari Node 2
+  //    & balas dengan 29-bit Frame SAE J1939 seketika
   twai_message_t rx_msg;
   while (twai_receive(&rx_msg, 0) == ESP_OK) {
     lastRxFromNode2 = now;
-    if (!rx_msg.extd && rx_msg.identifier == 0x7DF && rx_msg.data[1] == 0x01) {
-      sendOBDResponse(rx_msg.data[2]);
+    if (rx_msg.extd && rx_msg.data_length_code >= 3) {
+      uint32_t pgn_pdu1 = (rx_msg.identifier >> 8) & 0x3FF00;
+      if (pgn_pdu1 == PGN_REQUEST) {
+        uint32_t reqPgn = (uint32_t)rx_msg.data[0] |
+                          ((uint32_t)rx_msg.data[1] << 8) |
+                          ((uint32_t)rx_msg.data[2] << 16);
+        transmitJ1939PGN(reqPgn);
+      }
     }
   }
 

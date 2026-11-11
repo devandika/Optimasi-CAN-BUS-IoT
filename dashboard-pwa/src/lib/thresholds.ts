@@ -133,8 +133,81 @@ const LEVEL_KEYS: Record<ParamKey, true> = {
 };
 
 export const LEVEL_LABEL: Record<Level, string> = {
-  0: "Cold",
+  0: "Dingin",
   1: "Normal",
   2: "Warning",
   3: "Danger",
 };
+
+export type AlertSeverity = "warning" | "danger";
+
+export interface ParameterAlertItem {
+  key: ParamKey;
+  severity: AlertSeverity;
+  title: "Warning" | "Bahaya";
+  message: string;
+}
+
+export const PARAM_ORDER: ParamKey[] = [
+  "rpm",
+  "temp",
+  "load",
+  "map",
+  "spd",
+  "volt",
+];
+
+const PARAM_DISPLAY_NAME: Record<ParamKey, string> = {
+  rpm: "Engine Speed",
+  temp: "Engine Temp",
+  load: "Engine Load",
+  map: "Boost Pressure",
+  spd: "Speed",
+  volt: "System Voltage",
+};
+
+/**
+ * Mengevaluasi satu parameter apakah berada pada level Warning (2) atau Bahaya (3).
+ * Mengembalikan null jika Aman (1) atau Dingin (0).
+ */
+export function evaluateParameterAlert(
+  key: ParamKey,
+  value: number
+): ParameterAlertItem | null {
+  const lv = levelOf(key, value);
+  if (lv < 2) return null;
+
+  const isDanger = lv === 3;
+  const severity: AlertSeverity = isDanger ? "danger" : "warning";
+  const title: "Warning" | "Bahaya" = isDanger ? "Bahaya" : "Warning";
+
+  if (key === "volt") {
+    let message: string;
+    if (value < 18.0) {
+      message = "System Voltage rendah";
+    } else if (value <= 22.9) {
+      message = "System Voltage mendekati minimal";
+    } else if (isDanger) {
+      message = "System Voltage tinggi";
+    } else {
+      message = "System Voltage mendekati maksimal";
+    }
+    return { key, severity, title, message };
+  }
+
+  const label = PARAM_DISPLAY_NAME[key];
+  const message = isDanger ? `${label} tinggi` : `${label} mendekati maksimal`;
+  return { key, severity, title, message };
+}
+
+/** Mengembalikan seluruh parameter yang sedang dalam kondisi Warning atau Bahaya. */
+export function getActiveParameterAlerts(
+  t: TelemetryValues
+): ParameterAlertItem[] {
+  const alerts: ParameterAlertItem[] = [];
+  for (const key of PARAM_ORDER) {
+    const item = evaluateParameterAlert(key, t[key]);
+    if (item) alerts.push(item);
+  }
+  return alerts;
+}

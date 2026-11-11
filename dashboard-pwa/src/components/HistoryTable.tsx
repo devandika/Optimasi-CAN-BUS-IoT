@@ -234,7 +234,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
           <span className="w-3 h-3 rounded-sm bg-rose-500/40" /> Danger
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-sm bg-sky-500/30" /> Cold
+          <span className="w-3 h-3 rounded-sm bg-sky-500/30" /> Dingin
         </span>
         {rows.length > VISIBLE_ROWS && (
           <span style={{ color: "var(--text-muted)" }}>
