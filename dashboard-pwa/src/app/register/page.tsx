@@ -123,15 +123,18 @@ export default function RegisterPage() {
         }}
       />
 
-      {/* ─── Logo CAT di atas kotak ─── */}
+      {/* ─── Logo CAT di atas kotak (No Background) ─── */}
       <div className="mb-4 sm:mb-5 z-10 flex items-center justify-center">
-        <div className="bg-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-2xl shadow-xl border border-slate-200/90 flex items-center justify-center hover:scale-105 transition-all">
-          <img
-            src="/cat-logo.png"
-            alt="Caterpillar CAT Logo"
-            className="h-10 sm:h-12 w-auto object-contain"
-          />
-        </div>
+        <img
+          src="/cat-logo.png"
+          alt="Caterpillar CAT Logo"
+          className="h-10 sm:h-12 w-auto object-contain dark:hidden drop-shadow-sm transition-transform hover:scale-105"
+        />
+        <img
+          src="/cat-logo-dark.png"
+          alt="Caterpillar CAT Logo"
+          className="h-10 sm:h-12 w-auto object-contain hidden dark:block drop-shadow-sm transition-transform hover:scale-105"
+        />
       </div>
 
       {/* ─── Kartu Registrasi Glassmorphism (Ukuran presisi sama dengan Login: max-w-[420px]) ─── */}
@@ -179,11 +182,10 @@ export default function RegisterPage() {
                   if (usernameError) setUsernameError("");
                 }}
                 placeholder="Contoh: operator1"
-                className={`w-full glass-input pl-10 pr-4 py-2.5 text-sm font-medium transition-all ${
-                  usernameError
+                className={`w-full glass-input pl-10 pr-4 py-2.5 text-sm font-medium transition-all ${usernameError
                     ? "border-rose-500 ring-2 ring-rose-500/20 bg-rose-500/[0.03]"
                     : ""
-                }`}
+                  }`}
               />
             </div>
           </div>
@@ -219,11 +221,10 @@ export default function RegisterPage() {
                   if (passwordError) setPasswordError("");
                 }}
                 placeholder="Minimal 6 karakter"
-                className={`w-full glass-input pl-10 pr-11 py-2.5 text-sm font-medium transition-all ${
-                  passwordError
+                className={`w-full glass-input pl-10 pr-11 py-2.5 text-sm font-medium transition-all ${passwordError
                     ? "border-rose-500 ring-2 ring-rose-500/20 bg-rose-500/[0.03]"
                     : ""
-                }`}
+                  }`}
               />
               <button
                 type="button"
@@ -267,11 +268,10 @@ export default function RegisterPage() {
                   if (confirmError) setConfirmError("");
                 }}
                 placeholder="Ulangi password di atas"
-                className={`w-full glass-input pl-10 pr-11 py-2.5 text-sm font-medium transition-all ${
-                  confirmError
+                className={`w-full glass-input pl-10 pr-11 py-2.5 text-sm font-medium transition-all ${confirmError
                     ? "border-rose-500 ring-2 ring-rose-500/20 bg-rose-500/[0.03]"
                     : ""
-                }`}
+                  }`}
               />
               <button
                 type="button"
@@ -296,7 +296,7 @@ export default function RegisterPage() {
               </>
             ) : (
               <>
-                <span>Daftar Sekarang</span>
+                <span>Daftar</span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}

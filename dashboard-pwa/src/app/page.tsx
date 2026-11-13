@@ -669,16 +669,20 @@ export default function DashboardPage() {
             <Menu className="w-5 h-5 text-cat-yellow" />
           </button>
 
-          {/* Logo CAT di sebelah kiri tulisan Wheel Loader */}
-          <div className="bg-white px-2 py-1 rounded-lg shadow-sm border border-slate-200/90 flex items-center justify-center shrink-0">
+          {/* Logo CAT di sebelah kiri tulisan Wheel Loader (No Background & Tanpa Garis Kuning) */}
+          <div className="flex items-center justify-center shrink-0">
             <img
               src="/cat-logo.png"
               alt="CAT Logo"
-              className="h-5 sm:h-6 w-auto object-contain"
+              className="h-6 sm:h-7 w-auto object-contain dark:hidden"
+            />
+            <img
+              src="/cat-logo-dark.png"
+              alt="CAT Logo"
+              className="h-6 sm:h-7 w-auto object-contain hidden dark:block"
             />
           </div>
 
-          <span className="w-1.5 h-7 sm:h-8 rounded-sm bg-cat-yellow shrink-0" aria-hidden="true" />
           <div>
             <h1 className="text-sm sm:text-lg lg:text-xl landscape:text-sm font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
               Wheel Loader Caterpillar 950L
