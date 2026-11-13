@@ -42,6 +42,24 @@ unsigned long wifiConnectStart = 0;
 #define PIN_VOLT    26  // Potensio System Voltage (0.0 - 35.0 V) [ADC2_CH9]
 
 // ------------------------------------------------------------------------------
+// KONFIGURASI OUTPUT PWM KIPAS RADIATOR MESIN (ENGINE COOLING FAN)
+// ------------------------------------------------------------------------------
+#define PIN_FAN_PWM 18  // Pin Output PWM ke Basis Transistor Kipas 5V [GPIO 18 / D18]
+#define FAN_PWM_CHANNEL  0
+#define FAN_PWM_FREQ     5000 // 5 kHz PWM frequency (bebas dengung motor)
+#define FAN_PWM_RES      8    // Resolusi 8-bit (rentang duty cycle 0 - 255)
+
+#define FAN_DUTY_NORMAL  95   // Kecepatan Normal awal nyala (~37% duty cycle)
+#define FAN_DUTY_WARN    255  // Kecepatan Penuh saat warning (100% duty cycle)
+#define FAN_TEMP_WARN_THRESH 105 // Ambang batas suhu warning (>= 105 C)
+#define FAN_TEMP_HYST_THRESH 98  // Ambang histeresis suhu kembali normal (<= 98 C)
+
+// Variabel status kendali Kipas Pendingin Mesin
+bool fanHighSpeed = false;
+uint8_t currentFanDuty = 0;
+unsigned long lastFanUpdate = 0;
+
+// ------------------------------------------------------------------------------
 // KONFIGURASI PIN TWAI CAN BUS
 // ------------------------------------------------------------------------------
 #define TX_PIN 21       // Terhubung ke CTX / TXD SN65HVD230
@@ -300,6 +318,50 @@ void setupOTA() {
 }
 
 // ------------------------------------------------------------------------------
+// FUNGSI KENDALI KIPAS RADIATOR MESIN (ENGINE COOLING FAN PWM)
+// ------------------------------------------------------------------------------
+void setFanDuty(uint8_t duty) {
+  currentFanDuty = duty;
+#if defined(ESP_ARDUINO_VERSION_MAJOR) && (ESP_ARDUINO_VERSION_MAJOR >= 3)
+  ledcWrite(PIN_FAN_PWM, duty);
+#else
+  ledcWrite(FAN_PWM_CHANNEL, duty);
+#endif
+}
+
+void initCoolingFan() {
+#if defined(ESP_ARDUINO_VERSION_MAJOR) && (ESP_ARDUINO_VERSION_MAJOR >= 3)
+  ledcAttach(PIN_FAN_PWM, FAN_PWM_FREQ, FAN_PWM_RES);
+#else
+  ledcSetup(FAN_PWM_CHANNEL, FAN_PWM_FREQ, FAN_PWM_RES);
+  ledcAttachPin(PIN_FAN_PWM, FAN_PWM_CHANNEL);
+#endif
+  fanHighSpeed = false;
+  setFanDuty(FAN_DUTY_NORMAL);
+  Serial.printf("[COOLING FAN] Kipas Aktif di Pin GPIO %d (Speed Normal Awal: %d/255)\n", PIN_FAN_PWM, FAN_DUTY_NORMAL);
+}
+
+void updateCoolingFan(unsigned long now) {
+  if (now - lastFanUpdate < 100) return; // Evaluasi setiap 100 ms
+  lastFanUpdate = now;
+
+  // Baca suhu mesin aktual (0 - 120 °C) dari potensio PIN_ENG_TMP (ADC1_CH6)
+  uint8_t eng_temp_c = (uint8_t)map(readFilteredADC(PIN_ENG_TMP, 2), 0, 4095, 0, 120);
+
+  if (!fanHighSpeed && eng_temp_c >= FAN_TEMP_WARN_THRESH) {
+    fanHighSpeed = true;
+    setFanDuty(FAN_DUTY_WARN);
+    Serial.printf("[COOLING FAN] Suhu Mesin WARNING (%d C >= %d C) -> Putaran Kipas MAKSIMAL (100%%)!\n",
+                  eng_temp_c, FAN_TEMP_WARN_THRESH);
+  } else if (fanHighSpeed && eng_temp_c <= FAN_TEMP_HYST_THRESH) {
+    fanHighSpeed = false;
+    setFanDuty(FAN_DUTY_NORMAL);
+    Serial.printf("[COOLING FAN] Suhu Mesin AMAN (%d C <= %d C) -> Putaran Kipas NORMAL (%d/255).\n",
+                  eng_temp_c, FAN_TEMP_HYST_THRESH, FAN_DUTY_NORMAL);
+  }
+}
+
+// ------------------------------------------------------------------------------
 // SETUP
 // ------------------------------------------------------------------------------
 void setup() {
@@ -312,6 +374,9 @@ void setup() {
   // (Tekan tombol BOOT GPIO 0 kapan saja jika ingin menyalakan Wi-Fi OTA)
   WiFi.mode(WIFI_OFF);
 
+  // Inisialisasi Kipas Radiator Mesin (Otomatis langsung menyala di kecepatan normal)
+  initCoolingFan();
+
   initTWAI();
   lastRxFromNode2 = millis();
   Serial.println("ECU Simulator CAT 950L Aktif.");
@@ -323,7 +388,10 @@ void setup() {
 void loop() {
   unsigned long now = millis();
 
-  // 1. Terima Request PGN SAE J1939 (PGN 59904 / 0xEA00, 29-bit Extended) dari Node 2
+  // 1. Kontrol Otomatis Kipas Radiator Mesin (Otomatis naik kencang saat suhu warning)
+  updateCoolingFan(now);
+
+  // 2. Terima Request PGN SAE J1939 (PGN 59904 / 0xEA00, 29-bit Extended) dari Node 2
   //    & balas dengan 29-bit Frame SAE J1939 seketika
   twai_message_t rx_msg;
   while (twai_receive(&rx_msg, 0) == ESP_OK) {
@@ -339,7 +407,7 @@ void loop() {
     }
   }
 
-  // 2. WATCHDOG TWAI CAN OTOMATIS:
+  // 3. WATCHDOG TWAI CAN OTOMATIS:
   //    Jika Node 1 dicolok ke power lebih dulu (Node 2 belum nyala), atau kabel CAN sempat
   //    goyang/terputus sehingga tidak ada request selama > 600 ms atau terjadi error bus,
   //    reset bersih hardware TWAI agar selalu siap menangkap request pertama dari Node 2!

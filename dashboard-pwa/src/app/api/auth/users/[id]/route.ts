@@ -103,7 +103,7 @@ export async function PATCH(
 
   try {
     const body = await request.json();
-    const { role, password } = body;
+    const { role, password, username } = body;
 
     const { data: targetUser, error: getErr } =
       await supabaseAdmin.auth.admin.getUserById(userId);
@@ -134,15 +134,51 @@ export async function PATCH(
     const updatePayload: {
       user_metadata?: Record<string, unknown>;
       password?: string;
+      email?: string;
     } = {};
+
+    let updatedUsername = currentUsername;
+
+    // Jika ingin mengubah username
+    if (username && typeof username === "string") {
+      const cleanNewUser = username.trim().toLowerCase();
+      if (cleanNewUser !== currentUsername) {
+        if (isSuperAdmin) {
+          return NextResponse.json(
+            { success: false, message: "Username Super Admin tidak dapat diubah." },
+            { status: 403 }
+          );
+        }
+        // Periksa apakah username sudah dipakai oleh akun lain
+        const { data: { users: allUsers } } = await supabaseAdmin.auth.admin.listUsers();
+        const exists = allUsers?.some(
+          (u) =>
+            u.id !== userId &&
+            (u.user_metadata?.username?.toLowerCase() === cleanNewUser ||
+              u.email === `${cleanNewUser}@cat950l.local`)
+        );
+        if (exists) {
+          return NextResponse.json(
+            { success: false, message: `Username '${cleanNewUser}' sudah digunakan.` },
+            { status: 400 }
+          );
+        }
+        updatedUsername = cleanNewUser;
+        updatePayload.email = `${cleanNewUser}@cat950l.local`;
+      }
+    }
+
+    const newMetadata = { ...targetUser.user.user_metadata };
+    if (updatedUsername !== currentUsername) {
+      newMetadata.username = updatedUsername;
+    }
 
     if (role) {
       const formattedRole = String(role).toLowerCase() === "admin" ? "Admin" : "User";
-      updatePayload.user_metadata = {
-        ...targetUser.user.user_metadata,
-        role: formattedRole,
-      };
+      newMetadata.role = formattedRole;
     }
+
+    updatePayload.user_metadata = newMetadata;
 
     if (password) {
       if (String(password).length < 6) {
@@ -168,7 +204,10 @@ export async function PATCH(
 
     // Sinkronkan ke tabel public.users
     try {
-      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      const updates: Record<string, unknown> = {
+        username: updatedUsername,
+        updated_at: new Date().toISOString(),
+      };
       if (role) {
         updates.role = String(role).toLowerCase() === "admin" ? "Admin" : "User";
       }
@@ -179,7 +218,7 @@ export async function PATCH(
 
     return NextResponse.json({
       success: true,
-      message: `Data pengguna '${currentUsername}' berhasil diperbarui.`,
+      message: `Data pengguna '${updatedUsername}' berhasil diperbarui.`,
     });
   } catch (err: unknown) {
     console.error("[Users PATCH API] Error:", err);

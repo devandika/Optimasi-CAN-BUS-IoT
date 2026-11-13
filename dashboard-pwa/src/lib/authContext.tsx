@@ -56,6 +56,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Kirim sinyal heartbeat presensi secara berkala selama sesi login aktif
+  useEffect(() => {
+    if (!token) return;
+
+    const sendHeartbeat = async (action: "heartbeat" | "offline" = "heartbeat") => {
+      try {
+        await fetch("/api/auth/heartbeat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ action }),
+          keepalive: true,
+        });
+      } catch {
+        // Abaikan kesalahan koneksi background
+      }
+    };
+
+    // Kirim langsung saat terautentikasi
+    sendHeartbeat("heartbeat");
+
+    // Interval pengiriman berkala setiap 45 detik saat tab aktif
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        sendHeartbeat("heartbeat");
+      }
+    }, 45000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [token]);
+
   const login = useCallback(
     async (username: string, password: string): Promise<AuthResult> => {
       try {
@@ -131,6 +166,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(() => {
+    const currentToken = token;
+    if (currentToken) {
+      try {
+        fetch("/api/auth/heartbeat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${currentToken}`,
+          },
+          body: JSON.stringify({ action: "offline" }),
+          keepalive: true,
+        }).catch(() => {});
+      } catch {
+        // Abaikan jika offline
+      }
+    }
+
     try {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(USER_KEY);
@@ -140,7 +192,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
     setUser(null);
     window.location.href = "/login";
-  }, []);
+  }, [token]);
 
   const refreshUser = useCallback(() => {
     try {

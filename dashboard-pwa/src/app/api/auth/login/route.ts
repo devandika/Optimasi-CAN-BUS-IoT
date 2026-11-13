@@ -88,6 +88,19 @@ export async function POST(request: Request) {
       rawRole.toLowerCase() === "admin" ? "Admin" : "User";
     const actualUsername = data.user.user_metadata?.username || cleanUsername;
 
+    // Update presensi online di user_metadata
+    try {
+      await supabaseAdmin.auth.admin.updateUserById(data.user.id, {
+        user_metadata: {
+          ...data.user.user_metadata,
+          is_online: true,
+          last_seen_at: new Date().toISOString(),
+        },
+      });
+    } catch {
+      // Abaikan jika gagal update metadata
+    }
+
     // Sinkronkan ke tabel public.users jika tabel sudah dibuat
     try {
       await supabaseAdmin.from("users").upsert(

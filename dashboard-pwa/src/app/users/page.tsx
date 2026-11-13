@@ -1,9 +1,8 @@
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAuth, AuthUser } from "@/lib/authContext";
+import { useAuth } from "@/lib/authContext";
 import { SideMenu } from "@/components/SideMenu";
 import { ChangePasswordModal } from "@/components/ChangePasswordModal";
 import {
@@ -19,12 +18,12 @@ import {
   ChevronRight,
   Sun,
   Moon,
-  ArrowLeft,
   X,
   AlertCircle,
   CheckCircle2,
   Loader2,
-  ShieldAlert,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 interface ManagedUser {
@@ -34,6 +33,8 @@ interface ManagedUser {
   email: string;
   created_at: string;
   last_sign_in_at: string | null;
+  last_seen_at?: string | null;
+  is_online: boolean;
   is_super_admin: boolean;
 }
 
@@ -41,6 +42,7 @@ interface UserStats {
   total: number;
   admin: number;
   user: number;
+  online?: number;
 }
 
 export default function UsersManagementPage() {
@@ -49,7 +51,7 @@ export default function UsersManagementPage() {
 
   // State Halaman
   const [usersList, setUsersList] = useState<ManagedUser[]>([]);
-  const [stats, setStats] = useState<UserStats>({ total: 0, admin: 0, user: 0 });
+  const [stats, setStats] = useState<UserStats>({ total: 0, admin: 0, user: 0, online: 0 });
   const [isFetching, setIsFetching] = useState<boolean>(true);
   const [fetchError, setFetchError] = useState<string>("");
 
@@ -65,6 +67,7 @@ export default function UsersManagementPage() {
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [addUsername, setAddUsername] = useState<string>("");
   const [addPassword, setAddPassword] = useState<string>("");
+  const [showAddPassword, setShowAddPassword] = useState<boolean>(false);
   const [addRole, setAddRole] = useState<"Admin" | "User">("User");
   const [addError, setAddError] = useState<string>("");
   const [isSubmittingAdd, setIsSubmittingAdd] = useState<boolean>(false);
@@ -72,12 +75,14 @@ export default function UsersManagementPage() {
   // Modal Edit User
   const [showEditModal, setShowEditModal] = useState<boolean>(false);
   const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
+  const [editUsername, setEditUsername] = useState<string>("");
   const [editRole, setEditRole] = useState<"Admin" | "User">("User");
   const [editNewPassword, setEditNewPassword] = useState<string>("");
+  const [showEditPassword, setShowEditPassword] = useState<boolean>(false);
   const [editError, setEditError] = useState<string>("");
   const [isSubmittingEdit, setIsSubmittingEdit] = useState<boolean>(false);
 
-  // Modal Konfirmasi Hapus User
+  // Pop-up Konfirmasi Hapus User
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   const [deletingUser, setDeletingUser] = useState<ManagedUser | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
@@ -143,7 +148,7 @@ export default function UsersManagementPage() {
       } else {
         setFetchError(data.message || "Gagal memuat data pengguna.");
       }
-    } catch (err: unknown) {
+    } catch {
       setFetchError("Gagal terhubung ke server untuk memuat pengguna.");
     } finally {
       setIsFetching(false);
@@ -236,6 +241,7 @@ export default function UsersManagementPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
+          username: editUsername.trim() || undefined,
           role: editRole,
           password: editNewPassword || undefined,
         }),
@@ -317,7 +323,7 @@ export default function UsersManagementPage() {
             <ChevronRight className="w-5 h-5 text-cat-yellow" />
           </button>
 
-          {/* Logo CAT (No Background & Tanpa Garis Kuning) */}
+          {/* Logo CAT */}
           <div className="flex items-center justify-center shrink-0">
             <img
               src="/cat-logo.png"
@@ -344,22 +350,15 @@ export default function UsersManagementPage() {
           </div>
         </div>
 
+        {/* Sisi Kanan: Hanya Tombol Ganti Tema (Tombol Kembali ke Dashboard telah dihapus) */}
         <div className="flex items-center gap-2">
-          <Link
-            href="/"
-            className="px-3 py-1.5 rounded-lg glass-subtle hover:bg-slate-500/10 active:scale-95 transition-all text-xs font-semibold flex items-center gap-1.5 min-h-[38px]"
-            style={{ color: "var(--text-primary)" }}
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Kembali ke Dashboard</span>
-          </Link>
-
           <button
             type="button"
             onClick={toggleTheme}
-            className="p-2 rounded-lg glass-subtle hover:bg-slate-500/10 active:scale-95 transition-all min-w-[38px] min-h-[38px] flex items-center justify-center"
+            className="p-2 rounded-lg glass-subtle hover:bg-slate-500/10 active:scale-95 transition-all min-w-[38px] min-h-[38px] flex items-center justify-center cursor-pointer"
             style={{ color: "var(--text-primary)" }}
             aria-label="Ganti Tema"
+            title="Ganti Tema"
           >
             {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4 text-amber-400" />}
           </button>
@@ -376,13 +375,29 @@ export default function UsersManagementPage() {
           </div>
         )}
 
+        {/* Banner Error */}
+        {fetchError && (
+          <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs sm:text-sm font-semibold flex items-center gap-2.5 shadow-sm">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{fetchError}</span>
+          </div>
+        )}
+
         {/* ─── Tiga Kartu Statistik (KPI Cards) ─── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           <div className="glass-card p-4 sm:p-5 rounded-2xl flex items-center justify-between border border-[var(--glass-border)] shadow-sm">
             <div>
-              <p className="text-xs font-semibold tracking-wide uppercase" style={{ color: "var(--text-muted)" }}>
-                Total Pengguna
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-semibold tracking-wide uppercase" style={{ color: "var(--text-muted)" }}>
+                  Total Pengguna
+                </p>
+                {typeof stats.online === "number" && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    {stats.online} Online
+                  </span>
+                )}
+              </div>
               <h3 className="font-display text-2xl sm:text-3xl font-bold mt-1" style={{ color: "var(--text-primary)" }}>
                 {stats.total}
               </h3>
@@ -466,7 +481,7 @@ export default function UsersManagementPage() {
               type="button"
               onClick={fetchUsers}
               disabled={isFetching}
-              className="p-2 sm:px-3 sm:py-2 rounded-xl glass-subtle hover:bg-slate-500/10 active:scale-95 transition-all text-xs font-semibold flex items-center gap-1.5 min-h-[40px]"
+              className="p-2 sm:px-3 sm:py-2 rounded-xl glass-subtle hover:bg-slate-500/10 active:scale-95 transition-all text-xs font-semibold flex items-center gap-1.5 min-h-[40px] cursor-pointer"
               style={{ color: "var(--text-secondary)" }}
               title="Segarkan Data"
             >
@@ -480,11 +495,12 @@ export default function UsersManagementPage() {
               onClick={() => {
                 setAddUsername("");
                 setAddPassword("");
+                setShowAddPassword(false);
                 setAddRole("User");
                 setAddError("");
                 setShowAddModal(true);
               }}
-              className="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-cat-yellow hover:bg-cat-yellowHover text-slate-950 transition-all flex items-center gap-2 shadow-md active:scale-95 min-h-[40px]"
+              className="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-cat-yellow hover:bg-cat-yellowHover text-slate-950 transition-all flex items-center gap-2 shadow-md active:scale-95 min-h-[40px] cursor-pointer"
             >
               <UserPlus className="w-4 h-4" />
               <span>Tambah Pengguna</span>
@@ -507,8 +523,9 @@ export default function UsersManagementPage() {
                   <th className="py-3 px-4 font-bold text-xs uppercase tracking-wider hidden md:table-cell" style={{ color: "var(--text-muted)" }}>
                     Waktu Terdaftar
                   </th>
-                  <th className="py-3 px-4 font-bold text-xs uppercase tracking-wider hidden lg:table-cell" style={{ color: "var(--text-muted)" }}>
-                    Terakhir Masuk
+                  {/* Kolom Status Online/Offline Menggantikan Kolom Terakhir Masuk */}
+                  <th className="py-3 px-4 font-bold text-xs uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                    Status
                   </th>
                   <th className="py-3 px-4 font-bold text-xs uppercase tracking-wider text-right" style={{ color: "var(--text-muted)" }}>
                     Aksi
@@ -593,28 +610,36 @@ export default function UsersManagementPage() {
                           })}
                         </td>
 
-                        <td className="py-3.5 px-4 hidden lg:table-cell text-xs" style={{ color: "var(--text-secondary)" }}>
-                          {u.last_sign_in_at
-                            ? new Date(u.last_sign_in_at).toLocaleString("id-ID", {
-                                dateStyle: "medium",
-                                timeStyle: "short",
-                              })
-                            : "-"}
+                        {/* Tampilan Status Presensi: Online / Offline */}
+                        <td className="py-3.5 px-4">
+                          {u.is_online ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/15 border border-emerald-500/30">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                              Online
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-500/10 border border-slate-500/20">
+                              <span className="w-2 h-2 rounded-full bg-slate-400 dark:bg-slate-500" />
+                              Offline
+                            </span>
+                          )}
                         </td>
 
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            {/* Tombol Edit Peran & Sandi */}
+                            {/* Tombol Edit Peran, Username & Sandi */}
                             <button
                               type="button"
                               onClick={() => {
                                 setEditingUser(u);
+                                setEditUsername(u.username);
                                 setEditRole(u.role);
                                 setEditNewPassword("");
+                                setShowEditPassword(false);
                                 setEditError("");
                                 setShowEditModal(true);
                               }}
-                              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg glass-subtle hover:bg-slate-500/10 active:scale-95 transition-all text-xs font-semibold flex items-center gap-1"
+                              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg glass-subtle hover:bg-slate-500/10 active:scale-95 transition-all text-xs font-semibold flex items-center gap-1 cursor-pointer"
                               style={{ color: "var(--text-primary)" }}
                               title="Edit Pengguna"
                             >
@@ -622,7 +647,7 @@ export default function UsersManagementPage() {
                               <span className="hidden sm:inline">Edit</span>
                             </button>
 
-                            {/* Tombol Hapus Pengguna (Khusus Admin, Super Admin diproteksi) */}
+                            {/* Tombol Hapus Pengguna (Membuka Pop-up Konfirmasi Hapus) */}
                             <button
                               type="button"
                               disabled={u.is_super_admin || isSelf}
@@ -630,7 +655,7 @@ export default function UsersManagementPage() {
                                 setDeletingUser(u);
                                 setShowDeleteModal(true);
                               }}
-                              className={`p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg transition-all text-xs font-semibold flex items-center gap-1 ${
+                              className={`p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg transition-all text-xs font-semibold flex items-center gap-1 cursor-pointer ${
                                 u.is_super_admin || isSelf
                                   ? "opacity-30 cursor-not-allowed text-slate-400"
                                   : "text-rose-500 hover:bg-rose-500/15 active:scale-95"
@@ -660,15 +685,14 @@ export default function UsersManagementPage() {
 
       {/* ─── Modal Tambah Pengguna Baru ─── */}
       {showAddModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setShowAddModal(false)}
-          className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs"
-        >
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
+            onClick={() => !isSubmittingAdd && setShowAddModal(false)}
+          />
           <div
             onClick={(e) => e.stopPropagation()}
-            className="modal-panel glass-card w-full max-w-md p-5 sm:p-6 space-y-4 shadow-2xl relative"
+            className="relative w-full max-w-md glass-card p-5 sm:p-6 space-y-4 rounded-2xl shadow-2xl border border-[var(--glass-border)] z-10 animate-in fade-in zoom-in-95 duration-150"
           >
             <div className="flex items-center justify-between pb-3 border-b border-[var(--glass-border)]">
               <div className="flex items-center gap-3">
@@ -687,7 +711,8 @@ export default function UsersManagementPage() {
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="p-1.5 rounded-lg hover:bg-slate-500/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                className="p-1.5 rounded-lg hover:bg-slate-500/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                aria-label="Tutup"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -719,14 +744,23 @@ export default function UsersManagementPage() {
                 <label className="block text-xs font-semibold mb-1" style={{ color: "var(--text-secondary)" }}>
                   Password
                 </label>
-                <input
-                  type="password"
-                  value={addPassword}
-                  onChange={(e) => setAddPassword(e.target.value)}
-                  placeholder="Minimal 6 karakter"
-                  className="w-full glass-input px-3.5 py-2.5 text-sm font-medium"
-                  required
-                />
+                <div className="relative">
+                  <input
+                    type={showAddPassword ? "text" : "password"}
+                    value={addPassword}
+                    onChange={(e) => setAddPassword(e.target.value)}
+                    placeholder="Minimal 6 karakter"
+                    className="w-full glass-input pl-3.5 pr-10 py-2.5 text-sm font-medium"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAddPassword(!showAddPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                  >
+                    {showAddPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <div>
@@ -748,7 +782,7 @@ export default function UsersManagementPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 rounded-lg text-xs font-semibold glass-subtle hover:bg-slate-500/10 transition-colors"
+                  className="px-4 py-2.5 rounded-xl text-xs font-semibold glass-subtle hover:bg-slate-500/10 transition-colors cursor-pointer"
                   style={{ color: "var(--text-secondary)" }}
                 >
                   Batal
@@ -756,7 +790,7 @@ export default function UsersManagementPage() {
                 <button
                   type="submit"
                   disabled={isSubmittingAdd}
-                  className="px-5 py-2 rounded-lg text-xs font-bold bg-cat-yellow hover:bg-cat-yellowHover text-slate-950 transition-all flex items-center gap-1.5 shadow-md active:scale-95 disabled:opacity-50"
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-cat-yellow hover:bg-cat-yellowHover text-slate-950 transition-all flex items-center gap-1.5 shadow-md active:scale-95 disabled:opacity-50 cursor-pointer"
                 >
                   {isSubmittingAdd && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   <span>Simpan Pengguna</span>
@@ -769,15 +803,14 @@ export default function UsersManagementPage() {
 
       {/* ─── Modal Edit Pengguna ─── */}
       {showEditModal && editingUser && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setShowEditModal(false)}
-          className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs"
-        >
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
+            onClick={() => !isSubmittingEdit && setShowEditModal(false)}
+          />
           <div
             onClick={(e) => e.stopPropagation()}
-            className="modal-panel glass-card w-full max-w-md p-5 sm:p-6 space-y-4 shadow-2xl relative"
+            className="relative w-full max-w-md glass-card p-5 sm:p-6 space-y-4 rounded-2xl shadow-2xl border border-[var(--glass-border)] z-10 animate-in fade-in zoom-in-95 duration-150"
           >
             <div className="flex items-center justify-between pb-3 border-b border-[var(--glass-border)]">
               <div className="flex items-center gap-3">
@@ -786,17 +819,18 @@ export default function UsersManagementPage() {
                 </div>
                 <div>
                   <h2 className="font-display text-base sm:text-lg font-bold" style={{ color: "var(--text-primary)" }}>
-                    Edit Akun: {editingUser.username}
+                    Edit Akun: @{editingUser.username}
                   </h2>
                   <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    Ubah peran atau reset password akun
+                    Ubah peran, username atau reset kata sandi
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowEditModal(false)}
-                className="p-1.5 rounded-lg hover:bg-slate-500/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                className="p-1.5 rounded-lg hover:bg-slate-500/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                aria-label="Tutup"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -812,6 +846,27 @@ export default function UsersManagementPage() {
 
               <div>
                 <label className="block text-xs font-semibold mb-1" style={{ color: "var(--text-secondary)" }}>
+                  Username
+                </label>
+                <input
+                  type="text"
+                  value={editUsername}
+                  disabled={editingUser.is_super_admin}
+                  onChange={(e) => setEditUsername(e.target.value)}
+                  className={`w-full glass-input px-3.5 py-2.5 text-sm font-medium ${
+                    editingUser.is_super_admin ? "opacity-60 cursor-not-allowed" : ""
+                  }`}
+                  required
+                />
+                {editingUser.is_super_admin && (
+                  <p className="text-[11px] text-amber-500 mt-1">
+                    *Username Super Admin dikunci oleh sistem.
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: "var(--text-secondary)" }}>
                   Peran / Role
                 </label>
                 <select
@@ -819,7 +874,7 @@ export default function UsersManagementPage() {
                   value={editRole}
                   onChange={(e) => setEditRole(e.target.value as "Admin" | "User")}
                   className={`w-full glass-input px-3.5 py-2.5 text-sm font-medium ${
-                    editingUser.is_super_admin ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+                    editingUser.is_super_admin ? "opacity-60 cursor-not-allowed" : "cursor-pointer"
                   }`}
                   style={{ color: "var(--text-primary)" }}
                 >
@@ -837,20 +892,29 @@ export default function UsersManagementPage() {
                 <label className="block text-xs font-semibold mb-1" style={{ color: "var(--text-secondary)" }}>
                   Reset Password Baru (Opsional)
                 </label>
-                <input
-                  type="password"
-                  value={editNewPassword}
-                  onChange={(e) => setEditNewPassword(e.target.value)}
-                  placeholder="Kosongkan jika tidak ingin mengubah password"
-                  className="w-full glass-input px-3.5 py-2.5 text-sm font-medium"
-                />
+                <div className="relative">
+                  <input
+                    type={showEditPassword ? "text" : "password"}
+                    value={editNewPassword}
+                    onChange={(e) => setEditNewPassword(e.target.value)}
+                    placeholder="Kosongkan jika tidak ingin mengubah password"
+                    className="w-full glass-input pl-3.5 pr-10 py-2.5 text-sm font-medium"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEditPassword(!showEditPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                  >
+                    {showEditPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-[var(--glass-border)]">
                 <button
                   type="button"
                   onClick={() => setShowEditModal(false)}
-                  className="px-4 py-2 rounded-lg text-xs font-semibold glass-subtle hover:bg-slate-500/10 transition-colors"
+                  className="px-4 py-2.5 rounded-xl text-xs font-semibold glass-subtle hover:bg-slate-500/10 transition-colors cursor-pointer"
                   style={{ color: "var(--text-secondary)" }}
                 >
                   Batal
@@ -858,10 +922,10 @@ export default function UsersManagementPage() {
                 <button
                   type="submit"
                   disabled={isSubmittingEdit}
-                  className="px-5 py-2 rounded-lg text-xs font-bold bg-cat-yellow hover:bg-cat-yellowHover text-slate-950 transition-all flex items-center gap-1.5 shadow-md active:scale-95 disabled:opacity-50"
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-cat-yellow hover:bg-cat-yellowHover text-slate-950 transition-all flex items-center gap-1.5 shadow-md active:scale-95 disabled:opacity-50 cursor-pointer"
                 >
                   {isSubmittingEdit && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>Perbarui Pengguna</span>
+                  <span>Simpan Perubahan</span>
                 </button>
               </div>
             </form>
@@ -869,43 +933,42 @@ export default function UsersManagementPage() {
         </div>
       )}
 
-      {/* ─── Modal Konfirmasi Hapus Pengguna ─── */}
+      {/* ─── Pop-up Konfirmasi Hapus Pengguna (Sesuai Gaya Modal Logout) ─── */}
       {showDeleteModal && deletingUser && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setShowDeleteModal(false)}
-          className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs"
-        >
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
+            onClick={() => !isDeleting && setShowDeleteModal(false)}
+          />
           <div
             onClick={(e) => e.stopPropagation()}
-            className="modal-panel glass-card w-full max-w-md p-5 sm:p-6 space-y-4 shadow-2xl relative"
+            className="relative w-full max-w-xs sm:max-w-sm glass-card p-5 sm:p-6 rounded-2xl shadow-2xl border border-[var(--glass-border)] z-10 text-center space-y-4 animate-in fade-in zoom-in-95 duration-150"
           >
-            <div className="flex items-center gap-3 pb-3 border-b border-[var(--glass-border)]">
-              <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
-                <ShieldAlert className="w-5 h-5 text-rose-500" />
-              </div>
-              <div>
-                <h2 className="font-display text-base sm:text-lg font-bold" style={{ color: "var(--text-primary)" }}>
-                  Hapus Pengguna?
-                </h2>
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  Tindakan ini tidak dapat dibatalkan
-                </p>
-              </div>
+            <div className="w-12 h-12 mx-auto rounded-full bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-600 dark:text-rose-400">
+              <Trash2 className="w-6 h-6" />
             </div>
-
-            <p className="text-xs sm:text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
-              Apakah Anda yakin ingin menghapus akun pengguna{" "}
-              <strong className="text-cat-yellow font-bold">@{deletingUser.username}</strong> ({deletingUser.role})? Pengguna tidak akan dapat masuk lagi.
-            </p>
-
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[var(--glass-border)]">
+            <div>
+              <h3
+                className="font-display text-base sm:text-lg font-bold"
+                style={{ color: "var(--text-primary)" }}
+              >
+                Konfirmasi Hapus
+              </h3>
+              <p
+                className="text-xs sm:text-sm mt-1.5"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Apakah Anda yakin ingin menghapus akun{" "}
+                <span className="font-bold text-cat-yellow">@{deletingUser.username}</span> ({deletingUser.role})? Tindakan ini tidak dapat dibatalkan.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 pt-2">
               <button
                 type="button"
+                disabled={isDeleting}
                 onClick={() => setShowDeleteModal(false)}
-                className="px-4 py-2 rounded-lg text-xs font-semibold glass-subtle hover:bg-slate-500/10 transition-colors"
-                style={{ color: "var(--text-secondary)" }}
+                className="flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold glass-subtle hover:bg-slate-500/15 transition-all cursor-pointer disabled:opacity-50"
+                style={{ color: "var(--text-primary)" }}
               >
                 Batal
               </button>
@@ -913,10 +976,10 @@ export default function UsersManagementPage() {
                 type="button"
                 disabled={isDeleting}
                 onClick={handleDeleteConfirm}
-                className="px-5 py-2 rounded-lg text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white transition-all flex items-center gap-1.5 shadow-md active:scale-95 disabled:opacity-50"
+                className="flex-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
               >
-                {isDeleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                <span>Ya, Hapus Akun</span>
+                {isDeleting && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>{isDeleting ? "Menghapus..." : "Ya, Hapus"}</span>
               </button>
             </div>
           </div>
@@ -930,7 +993,7 @@ export default function UsersManagementPage() {
         token={token}
       />
 
-      {/* ─── Side Menu Overlay (Di atas halaman, tanpa pergeseran) ─── */}
+      {/* ─── Side Menu Overlay ─── */}
       <SideMenu
         isOpen={sideMenuOpen}
         onClose={() => setSideMenuOpen(false)}
@@ -945,4 +1008,3 @@ export default function UsersManagementPage() {
     </div>
   );
 }
-

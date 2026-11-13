@@ -19,8 +19,9 @@ Node 1 bertindak sebagai mesin virtual yang membaca 6 parameter analog dari pote
 | **6** | **System Voltage** | **GPIO 26** | ADC1_CH9 (Analog In) | Potensiometer 6 (Pin Tengah) | 0.0 – 35.0 V (SPN 168, VEP1) |
 | **7** | **CAN Transmit (CTX)** | **GPIO 21** | TWAI TX (Digital Out) | Pin CTX / TXD Transceiver SN65HVD230 | Transmit sinyal logika 3.3V ke transceiver |
 | **8** | **CAN Receive (CRX)** | **GPIO 22** | TWAI RX (Digital In) | Pin CRX / RXD Transceiver SN65HVD230 | Receive sinyal logika 3.3V dari transceiver |
-| **9** | **VCC 3.3V** | **3V3** | Power Output | Kaki 1 Potensiometer & VCC SN65HVD230 | Catu daya logika 3.3V tegangan referensi ADC |
-| **10**| **Ground** | **GND** | Power Ground | Kaki 3 Potensiometer & GND SN65HVD230 | Ground bersama (*Common Ground*) |
+| **9** | **Kipas Radiator (PWM)**| **GPIO 18** | LEDC PWM (Digital Out)| Basis Transistor NPN (via R 1kΩ) | PWM Otomatis (Normal: ~37%, Warn >=105°C: 100%) |
+| **10**| **VCC 3.3V** | **3V3** | Power Output | Kaki 1 Potensiometer & VCC SN65HVD230 | Catu daya logika 3.3V tegangan referensi ADC |
+| **11**| **Ground** | **GND** | Power Ground | Kaki 3 Potensiometer & GND SN65HVD230 | Ground bersama (*Common Ground*) |
 
 ---
 
@@ -87,7 +88,53 @@ GND ─────────────────────────�
 
 ---
 
-## 5. Peta Fisik Pinout ESP32 30-Pin Node 2 (Display Hub)
+## 5. Peta Fisik Pinout ESP32 30-Pin Node 1 (ECU Simulator)
+
+```text
+                     ESP32 DEVKIT V1 (30 PIN) - NODE 1
+                               +-----------+
+                          EN --| 1      30 |-- D23  ──  (NC / Bebas)
+                     (NC) VP --| 2      29 |-- D22  ──► CAN CRX (SN65HVD230)
+                     (NC) VN --| 3      28 |-- TX0  ──► USB Debug Serial TX
+      Potensio 3 (Temp) ──► D34 --| 4      27 |-- RX0  ──► USB Debug Serial RX
+      Potensio 4 (MAP)  ──► D35 --| 5      26 |-- D21  ──► CAN CTX (SN65HVD230)
+      Potensio 1 (RPM)  ──► D32 --| 6      25 |-- D19  ──  (NC / Bebas)
+      Potensio 2 (Load) ──► D33 --| 7      24 |-- D18  ──► Kipas PWM (via R 1k ke Basis Transistor)
+     Potensio 5 (Speed) ──► D25 --| 8      23 |-- D5   ──  (NC / Bebas)
+      Potensio 6 (Volt) ──► D26 --| 9      22 |-- TX2  ──  (NC / Bebas)
+                    (NC) D27 --| 10     21 |-- RX2  ──  (NC / Bebas)
+                    (NC) D14 --| 11     20 |-- D4   ──  (NC / Bebas)
+                    (NC) D12 --| 12     19 |-- D2   ──  (NC / Onboard LED)
+                    (NC) D13 --| 13     18 |-- D15  ──  (NC / Bebas)
+    Common GND  ──►       GND --| 14     17 |-- GND  ──► Emitter Transistor & GND Transceiver/Potensio
+  Catu Daya VIN ──►       VIN --| 15     16 |-- 3V3  ──► VCC 3.3V SN65HVD230 & Potensio (Kaki 1)
+                               +-----------+
+                                  [ USB ]
+```
+
+### Panduan Rangkaian Driver Kipas DC 5V (Transistor NPN):
+```text
+                  +5V (Pin VIN ESP32 atau Adaptor 5V)
+                    │
+                    ├───┐
+                    │   │
+                 Kipas  │ [Dioda Flyback 1N4007]
+                 5V DC  ▲ (Katoda bergaris perak ke +5V)
+                    │   │
+                    ├───┘
+                    │
+              Collector (C)
+                    │
+  GPIO 18 ──[ 1 kΩ ]── Base (B)   [ Transistor NPN (TIP120/BD139/2N2222) ]
+  (ESP 1)           │
+               Emitter (E)
+                    │
+                   GND (Common Ground ESP32)
+```
+
+---
+
+## 6. Peta Fisik Pinout ESP32 30-Pin Node 2 (Display Hub)
 
 Sesuai foto layout modul **ESP32 DevKit V1 30-Pin**, berikut adalah panduan posisi fisik pin kiri dan kanan beserta kabel periferal yang terpasang:
 

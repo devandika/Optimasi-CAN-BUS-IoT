@@ -116,11 +116,11 @@ export function ChangePasswordModal({
       aria-modal="true"
       aria-labelledby="change-pwd-title"
       onClick={handleReset}
-      className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs transition-opacity duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs transition-opacity duration-200"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="modal-panel glass-card w-full max-w-md p-5 sm:p-6 space-y-4 shadow-2xl relative"
+        className="relative w-full max-w-md glass-card p-5 sm:p-6 space-y-4 rounded-2xl shadow-2xl border border-[var(--glass-border)] z-10 animate-in fade-in zoom-in-95 duration-150"
       >
         {/* Header Modal */}
         <div className="flex items-center justify-between pb-3 border-b border-[var(--glass-border)]">

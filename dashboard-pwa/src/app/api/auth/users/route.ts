@@ -18,6 +18,10 @@ export async function GET(request: Request) {
       );
     }
 
+    const now = Date.now();
+    // Toleransi aktif heartbeat: 2 menit (120 detik)
+    const ONLINE_THRESHOLD_MS = 2 * 60 * 1000;
+
     const formattedUsers = users.map((u) => {
       const username =
         u.user_metadata?.username ||
@@ -27,6 +31,15 @@ export async function GET(request: Request) {
       const rawRole = u.user_metadata?.role || (isSuperAdmin ? "Admin" : "User");
       const role = rawRole.toLowerCase() === "admin" ? "Admin" : "User";
 
+      const lastSeenAt =
+        (u.user_metadata?.last_seen_at as string) ||
+        u.last_sign_in_at ||
+        null;
+      const lastSeenMs = lastSeenAt ? new Date(lastSeenAt).getTime() : 0;
+      const isSelf = u.id === authCheck.user.id;
+      const isExplicitlyOffline = u.user_metadata?.is_online === false;
+      const isOnline = isSelf || (!isExplicitlyOffline && (now - lastSeenMs) < ONLINE_THRESHOLD_MS);
+
       return {
         id: u.id,
         username,
@@ -34,6 +47,8 @@ export async function GET(request: Request) {
         email: u.email || "",
         created_at: u.created_at,
         last_sign_in_at: u.last_sign_in_at,
+        last_seen_at: lastSeenAt,
+        is_online: isOnline,
         is_super_admin: isSuperAdmin,
       };
     });
@@ -48,6 +63,7 @@ export async function GET(request: Request) {
     const total = formattedUsers.length;
     const adminCount = formattedUsers.filter((u) => u.role === "Admin").length;
     const userCount = formattedUsers.filter((u) => u.role === "User").length;
+    const onlineCount = formattedUsers.filter((u) => u.is_online).length;
 
     // Sinkronisasi otomatis ke public.users jika tabel sudah dibuat
     try {
@@ -71,6 +87,7 @@ export async function GET(request: Request) {
         total,
         admin: adminCount,
         user: userCount,
+        online: onlineCount,
       },
     });
   } catch (err: unknown) {
