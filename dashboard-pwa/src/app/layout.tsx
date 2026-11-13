@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { AuthProvider } from "@/lib/authContext";
 
 export const metadata: Metadata = {
   title: "CAT 950L IoT Telemetry Dashboard",
@@ -56,7 +57,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen antialiased">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
         <script
           dangerouslySetInnerHTML={{
             __html: `

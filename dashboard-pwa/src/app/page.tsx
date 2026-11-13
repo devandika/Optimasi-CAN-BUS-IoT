@@ -1,6 +1,10 @@
 "use client";
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/authContext";
+import { SideMenu } from "@/components/SideMenu";
+import { ChangePasswordModal } from "@/components/ChangePasswordModal";
 import { GaugeCard } from "@/components/GaugeCard";
 import { HistoryTable } from "@/components/HistoryTable";
 import { AlertBanner } from "@/components/AlertBanner";
@@ -19,7 +23,6 @@ import {
 } from "@/lib/mqttClient";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import { soundAlarm } from "@/lib/soundAlarm";
-import { BootIntro } from "@/components/BootIntro";
 import {
   Settings,
   X,
@@ -32,6 +35,7 @@ import {
   Trash2,
   Volume2,
   VolumeX,
+  Menu,
 } from "lucide-react";
 
 interface TelemetryState {
@@ -112,6 +116,20 @@ function formatFileTimestamp(ms: number): string {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const { user, token, isLoading: authLoading, logout } = useAuth();
+
+  // Side Menu & Modal Ubah Password
+  const [sideMenuOpen, setSideMenuOpen] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+
+  // Route Guard: Pastikan pengguna terautentikasi sebelum melihat dashboard
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace("/login");
+    }
+  }, [user, authLoading, router]);
+
   // Live Telemetry State (Hardware Real Data)
   const [telemetry, setTelemetry] = useState<TelemetryState>({
     rpm: 0,
@@ -148,11 +166,9 @@ export default function DashboardPage() {
   // Audio Alarm Mute State
   const [isMuted, setIsMuted] = useState<boolean>(() => soundAlarm.isMuted());
 
-  // UI Modal & Boot Controls
-  const [bootDone, setBootDone] = useState(false);
+  // UI Modal & Configuration Controls
   const [showConfig, setShowConfig] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const handleBootComplete = useCallback(() => setBootDone(true), []);
 
   // Active Broker Config
   const [activeBroker, setActiveBroker] =
@@ -639,12 +655,20 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen lg:h-screen landscape:h-screen lg:w-screen landscape:w-screen lg:overflow-hidden landscape:overflow-hidden flex flex-col">
-      {/* ─── Caterpillar 950L Boot Animation (Hanya muncul sekali per sesi) ─── */}
-      <BootIntro onComplete={handleBootComplete} />
-
       {/* ─── Header ─── */}
       <header className="glass-elevated shrink-0 px-3 py-2 sm:px-6 sm:py-3 landscape:py-1.5 landscape:px-4 flex flex-wrap items-center justify-between gap-2 sm:gap-3 z-20">
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* Tombol Buka Side Menu */}
+          <button
+            type="button"
+            onClick={() => setSideMenuOpen(true)}
+            className="p-1.5 sm:p-2 rounded-lg glass-subtle hover:bg-slate-500/10 active:scale-95 transition-all text-slate-800 dark:text-slate-100 flex items-center justify-center min-w-[38px] min-h-[38px] cursor-pointer"
+            aria-label="Buka Menu Samping"
+            title="Menu Samping"
+          >
+            <Menu className="w-5 h-5 text-cat-yellow" />
+          </button>
+
           <span className="w-1.5 h-7 sm:h-9 rounded-sm bg-cat-yellow shrink-0" aria-hidden="true" />
           <div>
             <h1 className="text-sm sm:text-lg lg:text-xl landscape:text-sm font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
@@ -657,6 +681,27 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          {/* Badge Pengguna / Profil */}
+          {user && (
+            <button
+              type="button"
+              onClick={() => setSideMenuOpen(true)}
+              className={`${btn} glass-subtle hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold`}
+              style={{ color: "var(--text-primary)" }}
+              title="Buka Menu Samping & Profil"
+            >
+              <span className={`w-2 h-2 rounded-full ${user.role === 'Admin' ? 'bg-cat-yellow' : 'bg-emerald-500'}`} />
+              <span className="max-w-[90px] truncate">{user.username}</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider ${
+                user.role === 'Admin'
+                  ? 'bg-cat-yellow/20 text-cat-yellow border border-cat-yellow/30'
+                  : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+              }`}>
+                {user.role}
+              </span>
+            </button>
+          )}
+
           <ConnectionStatus
             mqttConnected={mqttConnected}
             gatewayOnline={gatewayOnline}
@@ -1155,7 +1200,31 @@ export default function DashboardPage() {
         </div>
       </div>
       {/* ═══════════ POP-UP NOTIFIKASI PARAMETER (KIRI BAWAH) ═══════════ */}
-      <ParameterToastStack alerts={parameterAlerts} visible={bootDone} />
+      <ParameterToastStack alerts={parameterAlerts} visible={true} />
+
+      {/* ═══════════ SIDE MENU OVERLAY (DI ATAS HALAMAN TANPA PERGESERAN) ═══════════ */}
+      <SideMenu
+        isOpen={sideMenuOpen}
+        onClose={() => setSideMenuOpen(false)}
+        user={user}
+        activePath="/"
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onOpenBrokerSettings={() => {
+          setShowConfig(true);
+          setConfigError("");
+          setConfigSavedMsg("");
+        }}
+        onOpenChangePassword={() => setShowChangePassword(true)}
+        onLogout={logout}
+      />
+
+      {/* ═══════════ MODAL UBAH KATA SANDI MANDIRI ═══════════ */}
+      <ChangePasswordModal
+        isOpen={showChangePassword}
+        onClose={() => setShowChangePassword(false)}
+        token={token}
+      />
     </div>
   );
 }

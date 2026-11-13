@@ -17,14 +17,15 @@
  * - BUZZER ALARM     : GPIO 13 (Active-LOW, Hi-Z saat hening/muted)
  * - UART2 TX         : GPIO 17 (Kirim JSON ke Node 3 RX2 pin 16)
  * - UART2 RX         : GPIO 16 (Terima Status dari Node 3 TX2 pin 17)
- * - TOMBOL BIT 0 (PREV): GPIO 14 (Input Pull-up, Pin 3 IO Modul) -> Mundur Halaman (3 <- 2 <- 1 <- 3)
- * - TOMBOL BIT 1 (OK)  : GPIO 32 (Input Pull-up, Pin 4 IO Modul) -> Aksi Halaman (Mute / Reset / Refresh)
- * - TOMBOL BIT 2 (NEXT): GPIO 27 (Input Pull-up, Pin 5 IO Modul) -> Maju Halaman (1 -> 2 -> 3 -> 1)
+ * - TOMBOL BIT 0 (PREV): GPIO 14 (Input Pull-up, Pin 3 IO Modul) -> Mundur Halaman (5 <- 4 <- 3 <- 2 <- 1 <- 5)
+ * - TOMBOL BIT 1 (OK)  : GPIO 32 (Input Pull-up, Pin 4 IO Modul) -> Aksi Halaman (Mute / Reset / Refresh / Ganti Fault)
+ * - TOMBOL BIT 2 (NEXT): GPIO 27 (Input Pull-up, Pin 5 IO Modul) -> Maju Halaman (1 -> 2 -> 3 -> 4 -> 5 -> 1)
  * - BOOT BUTTON      : GPIO 0  (Tekan saat startup jika ingin Wi-Fi OTA)
  * ==============================================================================
  */
 
 #include "driver/twai.h"
+#include "page1_assets.h"
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
 #include <FS.h>
@@ -165,8 +166,29 @@ unsigned long lastNode3RxTime = 0;
 // ------------------------------------------------------------------------------
 // MANAJEMEN HALAMAN & TOMBOL FISIK
 // ------------------------------------------------------------------------------
-uint8_t currentPage = 1; // 1: Gauges, 2: J1939 Monitor, 3: IoT Gateway Status
+constexpr uint8_t TOTAL_PAGES = 7;
+constexpr uint8_t PAGE_COVER  = 1;
+constexpr uint8_t PAGE_TEAM   = 2;
+constexpr uint8_t PAGE_GAUGES = 3;
+constexpr uint8_t PAGE_J1939  = 4;
+constexpr uint8_t PAGE_IOT    = 5;
+constexpr uint8_t PAGE_LIMITS = 6;
+constexpr uint8_t PAGE_FAULTS = 7;
+
+uint8_t currentPage = PAGE_COVER;
 bool buzzerMuted = false;
+
+// State & Cache Halaman 5 (Fault Code Monitor)
+uint8_t selectedFaultSlot = 0;
+int8_t  previewSpnIdx = -1; // -1: Live Monitor, 0..5: Preview SPN saat tidak ada fault
+int8_t  lastFaultRenderedMode = -1; // 0: No Fault, 1: Active Fault, 2: Preview SPN
+uint8_t lastFaultRenderedCount = 255;
+uint8_t lastFaultRenderedSlot = 255;
+int8_t  lastFaultRenderedId = -1;
+uint8_t lastFaultRenderedSeverity = 255;
+uint8_t lastFaultRenderedSubDir = 255; // Untuk membedakan Volt rendah vs tinggi
+uint32_t lastFaultRenderedSig = 0xFFFFFFFFUL;
+int32_t lastFaultRenderedValInt = -999999;
 
 // Debouncing & Edge-triggered tombol
 int lastPrevState = HIGH;
@@ -181,6 +203,7 @@ const unsigned long DEBOUNCE_COOLDOWN_MS = 220; // Anti-rebound & non-blocking
 bool hasReceivedCanData = false;
 unsigned long lastCanRxTime = 0;
 unsigned long lastSmoothStep = 0;
+unsigned long lastPageRenderStep = 0;
 unsigned long lastWatchdogCheck = 0;
 unsigned long blinkTimer = 0;
 bool blinkState = false;
@@ -202,11 +225,18 @@ void switchPage(uint8_t newPage);
 void drawHeader();
 void updateHeaderStatus(bool forceRedraw = false);
 void drawFooter();
+void updateTelemetryStates();
+void drawPageCover_Static();
+void drawPageTeam_Static();
 void drawPage1_Static();
 void drawPage2_Static();
 void updatePage2_Dynamic();
 void drawPage3_Static();
 void updatePage3_Dynamic();
+void drawPage4_Static();
+void drawPage5_Static();
+void updatePage5_Dynamic(bool forceRedraw = false);
+uint8_t collectActiveFaults(uint8_t outParams[6], uint8_t outStates[6]);
 void resetTWAI();
 void initTWAI();
 
@@ -390,13 +420,44 @@ float stepLerp(float current, float target, float factor, float snapThreshold) {
   return current + (diff * factor);
 }
 
+void updateTelemetryStates() {
+  if (sync_rpm) {
+    smooth_rpm = stepLerp(smooth_rpm, (float)target_rpm, 0.35f, 1.5f);
+    uint16_t disp_rpm = (uint16_t)(smooth_rpm + 0.5f);
+    current_rpm_state = getNormalState(disp_rpm, 2200, 2400);
+  }
+  if (sync_load) {
+    smooth_load = stepLerp(smooth_load, (float)target_load, 0.35f, 0.6f);
+    uint8_t disp_load = (uint8_t)(smooth_load + 0.5f);
+    current_load_state = getNormalState(disp_load, 95, 100);
+  }
+  if (sync_eng) {
+    smooth_eng = stepLerp(smooth_eng, (float)target_eng, 0.35f, 0.6f);
+    uint8_t disp_eng = (uint8_t)(smooth_eng + 0.5f);
+    current_eng_state = getTempState(disp_eng, 71, 105, 108);
+  }
+  if (sync_map) {
+    smooth_map = stepLerp(smooth_map, (float)target_map, 0.35f, 0.8f);
+    uint8_t disp_map = (uint8_t)(smooth_map + 0.5f);
+    current_map_state = getNormalState(disp_map, 165, 200);
+  }
+  if (sync_speed) {
+    smooth_speed = stepLerp(smooth_speed, (float)target_speed, 0.35f, 0.6f);
+    uint8_t disp_speed = (uint8_t)(smooth_speed + 0.5f);
+    current_speed_state = getNormalState(disp_speed, 39, 42);
+  }
+  if (sync_volt) {
+    smooth_volt = stepLerp(smooth_volt, target_volt, 0.35f, 0.05f);
+    float disp_volt = ((int)(smooth_volt * 10.0f + 0.5f)) / 10.0f;
+    current_volt_state = getVoltState(disp_volt);
+  }
+}
+
 void updateSmoothDisplay() {
-  if (currentPage != 1) return; // Hanya gambar jika sedang di Halaman 1
+  if (currentPage != PAGE_GAUGES) return; // Hanya gambar jika sedang di Halaman Gauges (Hal 3)
 
   // 1. RPM
-  smooth_rpm = stepLerp(smooth_rpm, (float)target_rpm, 0.35f, 1.5f);
   uint16_t disp_rpm = (uint16_t)(smooth_rpm + 0.5f);
-  current_rpm_state = getNormalState(disp_rpm, 2200, 2400);
   if (disp_rpm != last_rpm) {
     renderRowNumberInt(0, disp_rpm, current_rpm_state);
     drawDynamicStairBar(0, VLINE_2 + 8, Y_ROW[0] - 2, disp_rpm, 3000, 2200, 2400);
@@ -404,9 +465,7 @@ void updateSmoothDisplay() {
   }
 
   // 2. ENGINE LOAD
-  smooth_load = stepLerp(smooth_load, (float)target_load, 0.35f, 0.6f);
   uint8_t disp_load = (uint8_t)(smooth_load + 0.5f);
-  current_load_state = getNormalState(disp_load, 95, 100);
   if (disp_load != last_load) {
     renderRowNumberInt(1, disp_load, current_load_state);
     drawDynamicStairBar(1, VLINE_2 + 8, Y_ROW[1] - 2, disp_load, 100, 95, 100);
@@ -414,9 +473,7 @@ void updateSmoothDisplay() {
   }
 
   // 3. ENGINE TEMP
-  smooth_eng = stepLerp(smooth_eng, (float)target_eng, 0.35f, 0.6f);
   uint8_t disp_eng = (uint8_t)(smooth_eng + 0.5f);
-  current_eng_state = getTempState(disp_eng, 71, 105, 108);
   if (disp_eng != last_eng) {
     renderRowNumberInt(2, disp_eng, current_eng_state);
     drawDynamicStairBar(2, VLINE_2 + 8, Y_ROW[2] - 2, disp_eng, 120, 102, 108, 71);
@@ -424,9 +481,7 @@ void updateSmoothDisplay() {
   }
 
   // 4. MAP BOOST
-  smooth_map = stepLerp(smooth_map, (float)target_map, 0.35f, 0.8f);
   uint8_t disp_map = (uint8_t)(smooth_map + 0.5f);
-  current_map_state = getNormalState(disp_map, 165, 200);
   if (disp_map != last_map) {
     renderRowNumberInt(3, disp_map, current_map_state);
     drawDynamicStairBar(3, VLINE_2 + 8, Y_ROW[3] - 2, disp_map, 255, 165, 200);
@@ -434,9 +489,7 @@ void updateSmoothDisplay() {
   }
 
   // 5. SPEED
-  smooth_speed = stepLerp(smooth_speed, (float)target_speed, 0.35f, 0.6f);
   uint8_t disp_speed = (uint8_t)(smooth_speed + 0.5f);
-  current_speed_state = getNormalState(disp_speed, 39, 42);
   if (disp_speed != last_speed) {
     renderRowNumberInt(4, disp_speed, current_speed_state);
     drawDynamicStairBar(4, VLINE_2 + 8, Y_ROW[4] - 2, disp_speed, 60, 39, 42);
@@ -444,9 +497,7 @@ void updateSmoothDisplay() {
   }
 
   // 6. SYSTEM VOLTAGE
-  smooth_volt = stepLerp(smooth_volt, target_volt, 0.35f, 0.05f);
   float disp_volt = ((int)(smooth_volt * 10.0f + 0.5f)) / 10.0f;
-  current_volt_state = getVoltState(disp_volt);
   if (fabsf(disp_volt - last_volt) >= 0.09f) {
     renderRowNumberFloat(5, disp_volt, current_volt_state);
     drawVoltStairBar(VLINE_2 + 8, Y_ROW[5] - 2, disp_volt);
@@ -458,6 +509,8 @@ void updateSmoothDisplay() {
 // RENDER HEADER STATIS & STATUS INDIKATOR BULAT (ECU, CAN, IOT)
 // ------------------------------------------------------------------------------
 void drawHeader() {
+  if (currentPage == PAGE_COVER || currentPage == PAGE_TEAM) return;
+
   tft.fillRect(0, 0, 480, 30, tft.color565(18, 24, 38)); // Dark Navy Bar
   tft.drawFastHLine(0, 30, 480, tft.color565(55, 65, 85));
 
@@ -465,12 +518,12 @@ void drawHeader() {
   tft.setTextSize(2);
   tft.setTextColor(tft.color565(255, 205, 0), tft.color565(18, 24, 38));
   char pageBadge[10];
-  snprintf(pageBadge, sizeof(pageBadge), "[P%d/3]", currentPage);
+  snprintf(pageBadge, sizeof(pageBadge), "[%d/%d]", currentPage, TOTAL_PAGES);
   tft.drawString(pageBadge, 8, 7);
 
   // Judul
   tft.setTextColor(TFT_WHITE, tft.color565(18, 24, 38));
-  tft.drawString("CAT 950L INSTRUMENT", 86, 7);
+  tft.drawString("CAT 950L MONITOR", 86, 7);
 
   // Label Header Virtual LEDs
   tft.setTextSize(1);
@@ -484,6 +537,8 @@ void drawHeader() {
 }
 
 void updateHeaderStatus(bool forceRedraw) {
+  if (currentPage == PAGE_COVER || currentPage == PAGE_TEAM) return;
+
   unsigned long now = millis();
 
   // Status ECU: Berdasarkan alarm/warning sensor
@@ -524,42 +579,47 @@ void updateHeaderStatus(bool forceRedraw) {
 // RENDER FOOTER PETUNJUK TOMBOL DINAMIS
 // ------------------------------------------------------------------------------
 void drawFooter() {
-  tft.fillRect(0, 295, 480, 25, tft.color565(15, 20, 30));
+  if (currentPage == PAGE_COVER || currentPage == PAGE_TEAM) return;
+
+  const uint16_t footerBg = tft.color565(15, 20, 30);
+  tft.fillRect(0, 295, 480, 25, footerBg);
   tft.drawFastHLine(0, 295, 480, tft.color565(45, 55, 75));
 
   tft.setTextSize(1);
-  tft.setTextColor(TFT_WHITE, tft.color565(15, 20, 30));
+  tft.setTextColor(TFT_WHITE, footerBg);
 
-  if (currentPage == 1) {
-    // Halaman 1 Footer: Navigasi & Mute Buzzer
-    tft.drawString("[<] HAL 3", 10, 303);
-    
-    // Status Mute di tengah
+  const uint8_t prevPage = (currentPage == 1) ? TOTAL_PAGES : (currentPage - 1);
+  const uint8_t nextPage = (currentPage % TOTAL_PAGES) + 1;
+  char navBuf[16];
+
+  snprintf(navBuf, sizeof(navBuf), "[<] HAL %d", prevPage);
+  tft.drawString(navBuf, 10, 303);
+
+  if (currentPage == PAGE_GAUGES) {
     if (buzzerMuted) {
-      tft.setTextColor(TFT_RED, tft.color565(15, 20, 30));
+      tft.setTextColor(TFT_RED, footerBg);
       tft.drawString("[●] BUZZER: MUTED (HENING)", 160, 303);
     } else {
-      tft.setTextColor(TFT_GREEN, tft.color565(15, 20, 30));
+      tft.setTextColor(TFT_GREEN, footerBg);
       tft.drawString("[●] BUZZER: AKTIF (NORMAL)", 160, 303);
     }
-    
-    tft.setTextColor(TFT_WHITE, tft.color565(15, 20, 30));
-    tft.drawString("[>] HAL 2", 420, 303);
-  } else if (currentPage == 2) {
-    // Halaman 2 Footer: Navigasi & Reset Counter
-    tft.drawString("[<] HAL 1", 10, 303);
-    tft.setTextColor(tft.color565(255, 205, 0), tft.color565(15, 20, 30));
+  } else if (currentPage == PAGE_J1939) {
+    tft.setTextColor(tft.color565(255, 205, 0), footerBg);
     tft.drawString("[●] TEKAN OK: RESET RX COUNTER", 155, 303);
-    tft.setTextColor(TFT_WHITE, tft.color565(15, 20, 30));
-    tft.drawString("[>] HAL 3", 420, 303);
-  } else if (currentPage == 3) {
-    // Halaman 3 Footer: Navigasi & Force Refresh
-    tft.drawString("[<] HAL 2", 10, 303);
-    tft.setTextColor(tft.color565(0, 230, 118), tft.color565(15, 20, 30));
+  } else if (currentPage == PAGE_IOT) {
+    tft.setTextColor(tft.color565(0, 230, 118), footerBg);
     tft.drawString("[●] TEKAN OK: REFRESH STATUS IOT", 150, 303);
-    tft.setTextColor(TFT_WHITE, tft.color565(15, 20, 30));
-    tft.drawString("[>] HAL 1", 420, 303);
+  } else if (currentPage == PAGE_LIMITS) {
+    tft.setTextColor(tft.color565(180, 195, 215), footerBg);
+    tft.drawString("BATAS KERJA PARAMETER OPERASIONAL", 141, 303);
+  } else if (currentPage == PAGE_FAULTS) {
+    tft.setTextColor(tft.color565(255, 205, 0), footerBg);
+    tft.drawString("[●] OK: GANTI / PREVIEW FAULT", 153, 303);
   }
+
+  tft.setTextColor(TFT_WHITE, footerBg);
+  snprintf(navBuf, sizeof(navBuf), "[>] HAL %d", nextPage);
+  tft.drawString(navBuf, 420, 303);
 }
 
 // ------------------------------------------------------------------------------
@@ -655,7 +715,7 @@ void drawPage2_Static() {
 }
 
 void updatePage2_Dynamic() {
-  if (currentPage != 2) return;
+  if (currentPage != PAGE_J1939) return;
 
   // Update Summary Info Atas
   tft.setTextSize(1);
@@ -748,7 +808,7 @@ void drawPage3_Static() {
 }
 
 void updatePage3_Dynamic() {
-  if (currentPage != 3) return;
+  if (currentPage != PAGE_IOT) return;
   unsigned long now = millis();
 
   bool gwFresh = node3_online && (lastNode3RxTime > 0) && ((now - lastNode3RxTime) < 4000);
@@ -827,29 +887,682 @@ void updatePage3_Dynamic() {
 }
 
 // ------------------------------------------------------------------------------
-// FUNGSI PERGANTIAN HALAMAN (CLEAN BODY RE-RENDER)
+// RENDER HALAMAN 4 (TABEL BATAS KERJA PARAMETER - 5 KOLOM)
 // ------------------------------------------------------------------------------
-void switchPage(uint8_t newPage) {
-  if (newPage < 1) newPage = 3;
-  if (newPage > 3) newPage = 1;
-  currentPage = newPage;
+void drawTableCellLines(int x, int y, int w, int h, uint16_t bgColor, uint16_t fgColor,
+                        const char *line1, const char *line2) {
+  tft.fillRect(x, y, w, h, bgColor);
+  tft.setTextSize(1);
+  tft.setTextColor(fgColor, bgColor);
+  if (line2 != nullptr && line2[0] != '\0') {
+    tft.drawString(line1, x + 6, y + 8);
+    tft.drawString(line2, x + 6, y + 21);
+  } else {
+    tft.drawString(line1, x + 6, y + 14);
+  }
+}
 
-  // Bersihkan HANYA area Body (Y: 31 s/d 294) - Anti Flicker!
-  tft.fillRect(0, 31, 480, 264, TFT_BLACK);
+void drawPage4_Static() {
+  struct ParamLimitRow {
+    const char *param;
+    const char *idle1;
+    const char *idle2;
+    const char *norm1;
+    const char *norm2;
+    const char *warn1;
+    const char *warn2;
+    const char *crit1;
+    const char *crit2;
+  };
 
-  // Perbarui Badge Indikator di Header
-  drawHeader();
+  const ParamLimitRow rows[6] = {
+    {"Engine Speed",   "700-800",   "RPM",      "< 2200 RPM", "",  "2200-2399", "RPM",      ">= 2400 RPM", ""},
+    {"Engine Load",    "0-15 %",    "",         "< 95 %",     "",  "95-99 %",   "",         ">= 100 %",    ""},
+    {"Engine Temp",    "< 71 C",    "(Cold)",   "71-104 C",   "",  "105-107 C", "",         ">= 108 C",    ""},
+    {"Boost Pressure", "0 kPa",     "(Idle)",   "< 165 kPa",  "",  "165-199",   "kPa",      ">= 200 kPa",  ""},
+    {"Speed",          "0 km/h",    "",         "< 39 km/h",  "",  "39-41",     "km/h",     ">= 42 km/h",  ""},
+    {"System Voltage", ">= 23.0 V", "(Min)",    "23.0-28.5",  "V", "<= 22.9 V", "> 28.5 V", "< 18.0 V",    ">= 32.0 V"}
+  };
 
-  // Gambar konten halaman baru
-  if (currentPage == 1) {
-    drawPage1_Static();
-  } else if (currentPage == 2) {
-    drawPage2_Static();
-  } else if (currentPage == 3) {
-    drawPage3_Static();
+  const int colX[5] = {0, 110, 194, 288, 382};
+  const int colW[5] = {110, 84, 94, 94, 98};
+  const char *colTitles[5] = {"PARAMETER", "IDLE / MIN", "NORMAL", "WARNING", "CRITICAL"};
+
+  const uint16_t titleBg   = tft.color565(24, 34, 52);
+  const uint16_t hdrBg[5]  = {
+    tft.color565(180, 188, 200),
+    tft.color565(134, 239, 172),
+    tft.color565(74, 222, 128),
+    tft.color565(250, 204, 21),
+    tft.color565(205, 32, 32)
+  };
+  const uint16_t hdrFg[5]  = {TFT_BLACK, TFT_BLACK, TFT_BLACK, TFT_BLACK, TFT_WHITE};
+
+  const uint16_t cellBg[5] = {
+    tft.color565(232, 236, 242), // Parameter: Abu-abu terang bersih
+    tft.color565(167, 243, 208), // Idle/Min : Hijau muda lembut
+    tft.color565(134, 239, 172), // Normal   : Hijau muda
+    tft.color565(253, 224, 71),  // Warning  : Kuning
+    tft.color565(220, 38, 38)    // Critical : Merah
+  };
+  const uint16_t cellFg[5] = {TFT_BLACK, TFT_BLACK, TFT_BLACK, TFT_BLACK, TFT_WHITE};
+  const uint16_t borderCol = tft.color565(45, 55, 72);
+
+  // Strip judul atas tabel (Y: 31..50)
+  tft.fillRect(0, 31, 480, 20, titleBg);
+  tft.setTextSize(1);
+  tft.setTextColor(tft.color565(255, 205, 0), titleBg);
+  tft.drawString("TABEL BATAS KERJA PARAMETER OPERASIONAL (CAT 950L)", 90, 37);
+
+  // Header kolom tabel (Y: 51..71)
+  for (int c = 0; c < 5; c++) {
+    tft.fillRect(colX[c], 51, colW[c], 21, hdrBg[c]);
+    tft.setTextColor(hdrFg[c], hdrBg[c]);
+    tft.drawString(colTitles[c], colX[c] + 6, 58);
   }
 
-  // Gambar footer petunjuk tombol
+  // 6 baris parameter (Y: 72..293, tinggi 37 px per baris)
+  for (int r = 0; r < 6; r++) {
+    const int y = 72 + (r * 37);
+    drawTableCellLines(colX[0], y, colW[0], 37, cellBg[0], cellFg[0], rows[r].param, "");
+    drawTableCellLines(colX[1], y, colW[1], 37, cellBg[1], cellFg[1], rows[r].idle1, rows[r].idle2);
+    drawTableCellLines(colX[2], y, colW[2], 37, cellBg[2], cellFg[2], rows[r].norm1, rows[r].norm2);
+    drawTableCellLines(colX[3], y, colW[3], 37, cellBg[3], cellFg[3], rows[r].warn1, rows[r].warn2);
+    drawTableCellLines(colX[4], y, colW[4], 37, cellBg[4], cellFg[4], rows[r].crit1, rows[r].crit2);
+    tft.drawFastHLine(0, y, 480, borderCol);
+  }
+
+  // Garis pemisah horizontal header & vertikal kolom
+  tft.drawFastHLine(0, 51, 480, borderCol);
+  tft.drawFastHLine(0, 72, 480, borderCol);
+  tft.drawFastHLine(0, 294, 480, borderCol);
+  for (int c = 1; c < 5; c++) {
+    tft.drawFastVLine(colX[c], 51, 243, borderCol);
+  }
+}
+
+// ------------------------------------------------------------------------------
+// RENDER HALAMAN 5 (FAULT CODE MONITOR SAE J1939)
+// ------------------------------------------------------------------------------
+struct FaultDisplayMeta {
+  const char *spnCode;
+  const char *paramName;
+  const char *safeLimit;
+  const char *warnLine1;
+  const char *warnLine2;
+  const char *warnAction;
+  const char *critLine1;
+  const char *critLine2;
+  const char *critAction;
+};
+
+static const FaultDisplayMeta FAULT_SPECS[6] = {
+  {
+    "SPN 190",
+    "Engine Speed",
+    "Batas Aman: < 2200 RPM",
+    "Kondisi : Putaran mesin mendekati batas maksimal (2200-2399 RPM).",
+    "Indikasi: Beban kerja berat atau bukaan throttle terlalu tinggi.",
+    "Aksi    : Kurangi gas agar putaran mesin turun di bawah 2200 RPM.",
+    "Kondisi : Putaran mesin melebihi batas / overspeed (>= 2400 RPM).",
+    "Indikasi: Kehilangan kendali RPM atau risiko kerusakan mekanis.",
+    "Aksi    : Turunkan RPM segera dan periksa sensor/kendali throttle!"
+  },
+  {
+    "SPN 92",
+    "Engine Load",
+    "Batas Aman: < 95 %",
+    "Kondisi : Beban mesin mendekati kapasitas penuh (95-99 %).",
+    "Indikasi: Mesin bekerja ekstra berat saat mendorong atau menggali.",
+    "Aksi    : Kurangi beban kerja hidrolik/bucket agar mesin stabil.",
+    "Kondisi : Beban mesin melebihi batas maksimal (>= 100% / overload).",
+    "Indikasi: Beban tidak valid atau gangguan komunikasi antar modul.",
+    "Aksi    : Kurangi beban unit segera untuk mencegah stall & overheat!"
+  },
+  {
+    "SPN 110",
+    "Engine Temp",
+    "Batas Aman: 71 - 104 C",
+    "Kondisi : Suhu coolant tinggi mendekati batas (105-107 C).",
+    "Indikasi: Pendinginan mulai kurang optimal akibat beban berat.",
+    "Aksi    : Kurangi beban kerja dan pantau suhu serta kipas radiator.",
+    "Kondisi : Suhu mesin terlalu tinggi / OVERHEAT (>= 108 C).",
+    "Indikasi: Risiko kerusakan mesin akibat overheat atau sensor rusak.",
+    "Aksi    : Hentikan kerja berat, idle mesin & cek radiator/coolant!"
+  },
+  {
+    "SPN 102",
+    "Boost Pressure",
+    "Batas Aman: < 165 kPa",
+    "Kondisi : Tekanan turbo (intake manifold) tinggi (165-199 kPa).",
+    "Indikasi: Tekanan udara masuk mendekati batas atas turbocharger.",
+    "Aksi    : Kurangi akselerasi mendadak & pantau tekanan boost.",
+    "Kondisi : Tekanan turbo terlalu tinggi / OVERBOOST (>= 200 kPa).",
+    "Indikasi: Tekanan intake berlebih (wastegate atau aktuator turbo).",
+    "Aksi    : Turunkan RPM segera, cek wastegate & sensor MAP boost!"
+  },
+  {
+    "SPN 84",
+    "Speed",
+    "Batas Aman: < 39 km/h",
+    "Kondisi : Kecepatan unit mendekati batas maksimal (39-41 km/h).",
+    "Indikasi: Laju alat berat terlalu cepat untuk kondisi operasi.",
+    "Aksi    : Kurangi kecepatan kendaraan sesuai batas aman area kerja.",
+    "Kondisi : Kecepatan unit melebihi batas aman (>= 42 km/h).",
+    "Indikasi: Overspeed unit atau sinyal Vehicle Speed Sensor error.",
+    "Aksi    : Lakukan pengereman bertahap, turun gigi & cek sensor VSS!"
+  },
+  {
+    "SPN 168",
+    "System Voltage",
+    "Batas Aman: 23.0 - 28.5 V",
+    "Kondisi : Tegangan sistem aki keluar batas aman (Warning).",
+    "Indikasi: Pengisian alternator lemah atau tegangan mulai berlebih.",
+    "Aksi    : Periksa alternator, kondisi baterai & beban kelistrikan.",
+    "Kondisi : Tegangan sistem aki berada pada level bahaya (Critical).",
+    "Indikasi: Aki drop parah (< 18.0 V) atau overvoltage (>= 32.0 V).",
+    "Aksi    : Cek aki, terminal kabel & regulator sebelum ECU rusak!"
+  }
+};
+
+uint8_t collectActiveFaults(uint8_t outParams[6], uint8_t outStates[6]) {
+  const bool synced[6] = {sync_rpm, sync_load, sync_eng, sync_map, sync_speed, sync_volt};
+  const uint8_t states[6] = {
+    current_rpm_state, current_load_state, current_eng_state,
+    current_map_state, current_speed_state, current_volt_state
+  };
+
+  uint8_t count = 0;
+  // Prioritaskan Critical (state == 3) lebih dulu, lalu Warning (state == 2)
+  for (uint8_t sev = 3; sev >= 2; sev--) {
+    for (uint8_t p = 0; p < 6; p++) {
+      if (synced[p] && states[p] == sev) {
+        outParams[count] = p;
+        outStates[count] = sev;
+        count++;
+      }
+    }
+  }
+  return count;
+}
+
+void drawPage5_TopStaticFrames() {
+  const uint16_t cardBg    = tft.color565(18, 24, 38);
+  const uint16_t hdrBg     = tft.color565(30, 42, 65);
+  const uint16_t borderCol = tft.color565(55, 70, 100);
+
+  // Kiri Atas: FAULT CODE (X: 6..235, Y: 34..127)
+  tft.fillRect(6, 34, 230, 94, cardBg);
+  tft.drawRect(6, 34, 230, 94, borderCol);
+  tft.fillRect(7, 35, 228, 18, hdrBg);
+  tft.setTextSize(1);
+  tft.setTextColor(tft.color565(255, 205, 0), hdrBg);
+  tft.drawString("FAULT CODE", 14, 40);
+
+  // Kanan Atas: PARAMETER (X: 244..473, Y: 34..127)
+  tft.fillRect(244, 34, 230, 94, cardBg);
+  tft.drawRect(244, 34, 230, 94, borderCol);
+  tft.fillRect(245, 35, 228, 18, hdrBg);
+  tft.setTextSize(1);
+  tft.setTextColor(tft.color565(0, 210, 255), hdrBg);
+  tft.drawString("PARAMETER", 252, 40);
+}
+
+void drawPage5_BottomFrame(bool showActiveStrip) {
+  const uint16_t cardBg    = tft.color565(18, 24, 38);
+  const uint16_t hdrBg     = tft.color565(30, 42, 65);
+  const uint16_t borderCol = tft.color565(55, 70, 100);
+  const int boxH = showActiveStrip ? 126 : 156;
+
+  // Bersihkan area bawah dari Y: 133 s/d 293 agar bebas sisa piksel transisi mode
+  tft.fillRect(0, 133, 480, 161, TFT_BLACK);
+
+  tft.fillRect(6, 134, 468, boxH, cardBg);
+  tft.drawRect(6, 134, 468, boxH, borderCol);
+  tft.fillRect(7, 135, 466, 18, hdrBg);
+  tft.setTextSize(1);
+  tft.setTextColor(tft.color565(255, 205, 0), hdrBg);
+  tft.drawString("PENJELASAN FAULT CODE", 14, 140);
+}
+
+void drawPage5_Static() {
+  drawPage5_TopStaticFrames();
+
+  // Reset cache render Halaman 5 agar langsung ter-render penuh
+  lastFaultRenderedMode = -1;
+  lastFaultRenderedCount = 255;
+  lastFaultRenderedSlot = 255;
+  lastFaultRenderedId = -1;
+  lastFaultRenderedSeverity = 255;
+  lastFaultRenderedSubDir = 255;
+  lastFaultRenderedSig = 0xFFFFFFFFUL;
+  lastFaultRenderedValInt = -999999;
+
+  updatePage5_Dynamic(true);
+}
+
+void drawPage5_ActiveStrip(const uint8_t activeParams[6], const uint8_t activeStates[6],
+                           uint8_t activeCount, uint8_t selectedSlot) {
+  tft.fillRect(6, 264, 468, 27, TFT_BLACK);
+  const int chipW = 74;
+  const int gap = 4;
+
+  for (uint8_t i = 0; i < activeCount && i < 6; i++) {
+    const int x = 6 + (i * (chipW + gap));
+    const bool isCrit = (activeStates[i] == 3);
+    const uint16_t fillCol = isCrit ? tft.color565(210, 32, 32) : tft.color565(250, 204, 21);
+    const uint16_t txtCol  = isCrit ? TFT_WHITE : TFT_BLACK;
+
+    tft.fillRoundRect(x, 265, chipW, 24, 3, fillCol);
+    if (i == selectedSlot) {
+      tft.drawRoundRect(x, 265, chipW, 24, 3, TFT_WHITE);
+      tft.drawRoundRect(x + 1, 266, chipW - 2, 22, 2, tft.color565(255, 205, 0));
+    }
+
+    tft.setTextSize(1);
+    tft.setTextColor(txtCol, fillCol);
+    const char *spnTxt = FAULT_SPECS[activeParams[i]].spnCode;
+    int textX = x + ((chipW - (int)strlen(spnTxt) * 6) / 2);
+    tft.drawString(spnTxt, textX, 273);
+  }
+}
+
+void formatFaultLiveValue(uint8_t paramId, char *outBuf, size_t bufLen, int32_t &outValKey) {
+  switch (paramId) {
+    case 0: {
+      uint16_t v = (uint16_t)(smooth_rpm + 0.5f);
+      snprintf(outBuf, bufLen, "%u RPM", v);
+      outValKey = (int32_t)v;
+      break;
+    }
+    case 1: {
+      uint8_t v = (uint8_t)(smooth_load + 0.5f);
+      snprintf(outBuf, bufLen, "%u %%", v);
+      outValKey = (int32_t)v;
+      break;
+    }
+    case 2: {
+      uint8_t v = (uint8_t)(smooth_eng + 0.5f);
+      snprintf(outBuf, bufLen, "%u C", v);
+      outValKey = (int32_t)v;
+      break;
+    }
+    case 3: {
+      uint8_t v = (uint8_t)(smooth_map + 0.5f);
+      snprintf(outBuf, bufLen, "%u kPa", v);
+      outValKey = (int32_t)v;
+      break;
+    }
+    case 4: {
+      uint8_t v = (uint8_t)(smooth_speed + 0.5f);
+      snprintf(outBuf, bufLen, "%u km/h", v);
+      outValKey = (int32_t)v;
+      break;
+    }
+    case 5:
+    default: {
+      float v = ((int)(smooth_volt * 10.0f + 0.5f)) / 10.0f;
+      snprintf(outBuf, bufLen, "%.1f V", v);
+      outValKey = (int32_t)(v * 10.0f + 0.5f);
+      break;
+    }
+  }
+}
+
+void updatePage5_Dynamic(bool forceRedraw) {
+  if (currentPage != PAGE_FAULTS) return;
+
+  const uint16_t cardBg = tft.color565(18, 24, 38);
+  const uint16_t hdrBg  = tft.color565(30, 42, 65);
+
+  uint8_t activeParams[6] = {0};
+  uint8_t activeStates[6] = {0};
+  uint8_t activeCount = collectActiveFaults(activeParams, activeStates);
+
+  if (activeCount > 0) {
+    previewSpnIdx = -1; // Fault nyata langsung menggantikan mode preview
+    if (selectedFaultSlot >= activeCount) {
+      selectedFaultSlot = 0;
+    }
+  } else {
+    selectedFaultSlot = 0;
+  }
+
+  // Mode: 0 = No Fault, 1 = Active Fault, 2 = Preview SPN
+  int8_t mode = 0;
+  int8_t focusParam = -1;
+  uint8_t focusSeverity = 1;
+  uint8_t subDir = 0; // Khusus Volt (1: Low, 2: High)
+  int32_t valKey = 0;
+
+  if (activeCount > 0) {
+    mode = 1;
+    focusParam = (int8_t)activeParams[selectedFaultSlot];
+    focusSeverity = activeStates[selectedFaultSlot];
+  } else if (previewSpnIdx >= 0 && previewSpnIdx < 6) {
+    mode = 2;
+    focusParam = previewSpnIdx;
+    focusSeverity = 0; // Penanda preview
+  }
+
+  char liveValStr[20] = "";
+  if (mode == 1) {
+    formatFaultLiveValue((uint8_t)focusParam, liveValStr, sizeof(liveValStr), valKey);
+    if (focusParam == 5) {
+      float dv = ((int)(smooth_volt * 10.0f + 0.5f)) / 10.0f;
+      subDir = (dv <= 22.9f) ? 1 : 2;
+    }
+  } else if (mode == 2) {
+    formatFaultLiveValue((uint8_t)focusParam, liveValStr, sizeof(liveValStr), valKey);
+  }
+
+  uint32_t activeSig = 0;
+  for (uint8_t i = 0; i < activeCount && i < 6; i++) {
+    activeSig = (activeSig << 5) | ((uint32_t)(activeParams[i] & 0x07) << 2) | (uint32_t)(activeStates[i] & 0x03);
+  }
+
+  const bool modeTransition = forceRedraw ||
+                              (mode != lastFaultRenderedMode) ||
+                              ((mode == 1) != (lastFaultRenderedMode == 1));
+  const bool faultIdentityChanged = modeTransition ||
+                                    (focusParam != lastFaultRenderedId) ||
+                                    (focusSeverity != lastFaultRenderedSeverity) ||
+                                    (subDir != lastFaultRenderedSubDir) ||
+                                    (activeCount != lastFaultRenderedCount) ||
+                                    (selectedFaultSlot != lastFaultRenderedSlot);
+  const bool stripChanged = (mode == 1) && (faultIdentityChanged || (activeSig != lastFaultRenderedSig));
+  const bool valueChanged = (valKey != lastFaultRenderedValInt);
+
+  if (!faultIdentityChanged && !stripChanged && !valueChanged) return;
+
+  if (modeTransition) {
+    drawPage5_BottomFrame(mode == 1);
+  }
+
+  // 1. Update Kiri Atas (FAULT CODE) & Badge Counter Header Kanan Atas
+  if (faultIdentityChanged) {
+    tft.fillRect(8, 54, 224, 72, cardBg);
+    tft.fillRect(365, 36, 106, 15, hdrBg);
+
+    if (mode == 0) {
+      tft.setTextSize(3);
+      tft.setTextColor(TFT_GREEN, cardBg);
+      tft.drawString("NO FAULT", 18, 60);
+
+      const uint16_t okBg = tft.color565(22, 163, 74);
+      tft.fillRoundRect(16, 96, 208, 22, 4, okBg);
+      tft.setTextSize(1);
+      tft.setTextColor(TFT_WHITE, okBg);
+      tft.drawString("[OK] SEMUA PARAMETER NORMAL", 34, 103);
+
+      tft.setTextColor(TFT_GREEN, hdrBg);
+      tft.drawString("0 FAULT AKTIF", 386, 40);
+    } else if (mode == 1) {
+      const bool isCrit = (focusSeverity == 3);
+      const uint16_t codeCol = isCrit ? tft.color565(255, 85, 85) : tft.color565(253, 224, 71);
+      const uint16_t pillBg  = isCrit ? tft.color565(210, 32, 32) : tft.color565(250, 204, 21);
+      const uint16_t pillFg  = isCrit ? TFT_WHITE : TFT_BLACK;
+
+      tft.setTextSize(3);
+      tft.setTextColor(codeCol, cardBg);
+      tft.drawString(FAULT_SPECS[focusParam].spnCode, 18, 60);
+
+      tft.fillRoundRect(16, 96, 208, 22, 4, pillBg);
+      tft.setTextSize(1);
+      tft.setTextColor(pillFg, pillBg);
+      tft.drawString(isCrit ? "[!] CRITICAL / BAHAYA" : "[!] WARNING / WASPADA", 52, 103);
+
+      char cntBuf[20];
+      snprintf(cntBuf, sizeof(cntBuf), "FAULT %u/%u", (unsigned)(selectedFaultSlot + 1), (unsigned)activeCount);
+      tft.setTextColor(codeCol, hdrBg);
+      tft.drawString(cntBuf, 405, 40);
+    } else {
+      const uint16_t prevCol = tft.color565(56, 189, 248);
+      const uint16_t pillBg  = tft.color565(14, 116, 144);
+
+      tft.setTextSize(3);
+      tft.setTextColor(prevCol, cardBg);
+      tft.drawString(FAULT_SPECS[focusParam].spnCode, 18, 60);
+
+      tft.fillRoundRect(16, 96, 208, 22, 4, pillBg);
+      tft.setTextSize(1);
+      tft.setTextColor(TFT_WHITE, pillBg);
+      tft.drawString("MODE PREVIEW REFERENSI", 45, 103);
+
+      char prevBuf[20];
+      snprintf(prevBuf, sizeof(prevBuf), "PREVIEW %d/6", (int)(focusParam + 1));
+      tft.setTextColor(prevCol, hdrBg);
+      tft.drawString(prevBuf, 398, 40);
+    }
+  }
+
+  // 2. Update Kanan Atas (PARAMETER & LIVE VALUE)
+  if (faultIdentityChanged || valueChanged) {
+    tft.fillRect(246, 54, 224, 72, cardBg);
+
+    if (mode == 0) {
+      tft.setTextSize(2);
+      tft.setTextColor(TFT_WHITE, cardBg);
+      tft.drawString("All 6 Params", 254, 58);
+      tft.setTextColor(TFT_GREEN, cardBg);
+      tft.drawString("NORMAL", 254, 82);
+      tft.setTextSize(1);
+      tft.setTextColor(tft.color565(170, 185, 205), cardBg);
+      tft.drawString("6 Parameter J1939 Terpantau", 254, 107);
+    } else {
+      const uint16_t valCol = (mode == 2)
+                                ? tft.color565(56, 189, 248)
+                                : ((focusSeverity == 3) ? tft.color565(255, 85, 85) : tft.color565(253, 224, 71));
+      tft.setTextSize(2);
+      tft.setTextColor(TFT_WHITE, cardBg);
+      tft.drawString(FAULT_SPECS[focusParam].paramName, 254, 58);
+
+      tft.setTextColor(valCol, cardBg);
+      tft.drawString(liveValStr, 254, 82);
+
+      tft.setTextSize(1);
+      tft.setTextColor(tft.color565(170, 185, 205), cardBg);
+      tft.drawString(FAULT_SPECS[focusParam].safeLimit, 254, 107);
+    }
+  }
+
+  // 3. Update Bawah (PENJELASAN FAULT CODE & STRIP AKTIF JIKA ADA FAULT)
+  if (faultIdentityChanged) {
+    const int explainH = (mode == 1) ? 104 : 134;
+    tft.fillRect(8, 154, 464, explainH, cardBg);
+    tft.setTextSize(1);
+
+    if (mode == 0) {
+      tft.setTextColor(TFT_GREEN, cardBg);
+      tft.drawString("Status  : Tidak ada Fault Code aktif saat ini.", 16, 166);
+      tft.setTextColor(TFT_WHITE, cardBg);
+      tft.drawString("Pantauan: Engine Speed (SPN 190), Engine Load (SPN 92),", 16, 188);
+      tft.drawString("          Engine Temp (SPN 110), Boost Pressure (SPN 102),", 16, 204);
+      tft.drawString("          Speed (SPN 84), dan System Voltage (SPN 168).", 16, 220);
+      tft.setTextColor(tft.color565(255, 205, 0), cardBg);
+      tft.drawString("Tips    : Tekan tombol OK untuk preview penjelasan 6 SPN.", 16, 248);
+    } else {
+      const FaultDisplayMeta &spec = FAULT_SPECS[focusParam];
+      const bool isCrit = (mode == 1 && focusSeverity == 3);
+      const char *line1 = isCrit ? spec.critLine1 : spec.warnLine1;
+      const char *line2 = isCrit ? spec.critLine2 : spec.warnLine2;
+      const char *act   = isCrit ? spec.critAction : spec.warnAction;
+
+      if (focusParam == 5 && mode == 1) {
+        if (subDir == 1) {
+          line1 = isCrit
+                    ? "Kondisi : Tegangan sistem terlalu rendah / LOW VOLT (< 18.0 V)."
+                    : "Kondisi : Tegangan sistem rendah di bawah batas aman (<= 22.9 V).";
+          line2 = "Indikasi: Daya aki lemah atau pengisian alternator tidak optimal.";
+          act   = "Aksi    : Segera cek kondisi aki, terminal, dan alternator!";
+        } else {
+          line1 = isCrit
+                    ? "Kondisi : Tegangan sistem terlalu tinggi / OVERVOLT (>= 32.0 V)."
+                    : "Kondisi : Tegangan sistem melebihi batas atas (> 28.5 V).";
+          line2 = "Indikasi: Gangguan pada voltage regulator / alternator overcharge.";
+          act   = "Aksi    : Periksa regulator tegangan sebelum merusak sistem ECU!";
+        }
+      } else if (mode == 2) {
+        // Preview SPN menampilkan penjelasan kondisi kritis sebagai referensi
+        line1 = spec.critLine1;
+        line2 = spec.critLine2;
+        act   = spec.critAction;
+      }
+
+      tft.setTextColor(isCrit ? tft.color565(255, 110, 110) : tft.color565(253, 224, 71), cardBg);
+      tft.drawString(line1, 16, 166);
+      tft.setTextColor(TFT_WHITE, cardBg);
+      tft.drawString(line2, 16, 190);
+      tft.setTextColor(tft.color565(134, 239, 172), cardBg);
+      tft.drawString(act, 16, 216);
+
+      if (mode == 1) {
+        if (activeCount > 1) {
+          tft.setTextColor(tft.color565(255, 205, 0), cardBg);
+          tft.drawString("Navigasi: Tekan OK untuk memilih fault code aktif di bawah.", 16, 240);
+        } else {
+          tft.setTextColor(tft.color565(160, 175, 195), cardBg);
+          tft.drawString("Info    : 1 fault code sedang aktif pada parameter di atas.", 16, 240);
+        }
+      } else {
+        tft.setTextColor(tft.color565(56, 189, 248), cardBg);
+        tft.drawString("Preview : Tekan OK untuk melihat SPN berikutnya / keluar preview.", 16, 250);
+      }
+    }
+  }
+
+  if (stripChanged) {
+    drawPage5_ActiveStrip(activeParams, activeStates, activeCount, selectedFaultSlot);
+  }
+
+  lastFaultRenderedMode = mode;
+  lastFaultRenderedCount = activeCount;
+  lastFaultRenderedSlot = selectedFaultSlot;
+  lastFaultRenderedId = focusParam;
+  lastFaultRenderedSeverity = focusSeverity;
+  lastFaultRenderedSubDir = subDir;
+  lastFaultRenderedSig = activeSig;
+  lastFaultRenderedValInt = valKey;
+}
+
+// ------------------------------------------------------------------------------
+// RENDER HALAMAN 1 (COVER BANNER TPPAB SV UGM - BACKGROUND PUTIH)
+// ------------------------------------------------------------------------------
+void drawPageCover_Static() {
+  tft.fillScreen(TFT_WHITE);
+
+  // Gambar komponen dari page1_assets.h (hasil konversi javl/image2cpp RGB565)
+  tft.setSwapBytes(true);
+  tft.pushImage(12, 14, IMG_TPPAB_LOGO_W, IMG_TPPAB_LOGO_H, img_tppab_logo);
+  tft.pushImage(410, 10, IMG_SOLIDARITY_M_W, IMG_SOLIDARITY_M_H, img_solidarity_m);
+  tft.pushImage(75, 88, IMG_CAT950L_LOADER_W, IMG_CAT950L_LOADER_H, img_cat950l_loader);
+  tft.pushImage(108, 98, IMG_CAT_LOGO_W, IMG_CAT_LOGO_H, img_cat_logo);
+  tft.setSwapBytes(false);
+
+  // Judul utama warna biru di tengah atas
+  tft.setFreeFont(&FreeSansBold18pt7b);
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextSize(1);
+  tft.setTextColor(tft.color565(11, 78, 162), TFT_WHITE);
+  tft.drawString("TPPAB SV UGM", 256, 42);
+
+  // Teks 950L tepat di bawah logo CAT
+  tft.setFreeFont(&FreeSansBold9pt7b);
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextColor(TFT_BLACK, TFT_WHITE);
+  tft.drawString("950L", 132, 138);
+
+  // Navigasi sudut bawah kiri & kanan (font hitam pada latar putih)
+  tft.setFreeFont(&FreeSans9pt7b);
+  tft.setTextColor(TFT_BLACK, TFT_WHITE);
+  tft.setTextDatum(TL_DATUM);
+  tft.drawString("<- Prev", 12, 296);
+  tft.setTextDatum(TR_DATUM);
+  tft.drawString("Next ->", 468, 296);
+
+  // Kembalikan font & datum standar untuk halaman 3 - 7
+  tft.setFreeFont(nullptr);
+  tft.setTextDatum(TL_DATUM);
+  tft.setTextPadding(0);
+}
+
+// ------------------------------------------------------------------------------
+// RENDER HALAMAN 2 (CREDIT TIM KELOMPOK - BACKGROUND HITAM, FONT PUTIH)
+// ------------------------------------------------------------------------------
+void drawPageTeam_Static() {
+  tft.fillScreen(TFT_BLACK);
+
+  tft.setFreeFont(&FreeSansBold18pt7b);
+  tft.setTextDatum(TL_DATUM);
+  tft.setTextSize(1);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawString("Tim", 160, 30);
+  tft.drawFastHLine(160, 68, 160, TFT_WHITE);
+
+  const char *teamMembers[6] = {
+    "1. Tataniku",
+    "2. Devan",
+    "3. Tri Rayhan",
+    "4. Abel",
+    "5. Pramudya",
+    "6. Sandro"
+  };
+
+  tft.setFreeFont(&FreeSans12pt7b);
+  for (int i = 0; i < 6; i++) {
+    tft.drawString(teamMembers[i], 160, 82 + (i * 32));
+  }
+
+  // Navigasi sudut bawah kiri & kanan (font putih pada latar hitam)
+  tft.setFreeFont(&FreeSans9pt7b);
+  tft.setTextDatum(TL_DATUM);
+  tft.drawString("<- Prev", 12, 296);
+  tft.setTextDatum(TR_DATUM);
+  tft.drawString("Next ->", 468, 296);
+
+  // Kembalikan font & datum standar untuk halaman 3 - 7
+  tft.setFreeFont(nullptr);
+  tft.setTextDatum(TL_DATUM);
+  tft.setTextPadding(0);
+}
+
+// ------------------------------------------------------------------------------
+// FUNGSI PERGANTIAN HALAMAN (FULL-SCREEN HAL 1-2 & CLEAN BODY HAL 3-7)
+// ------------------------------------------------------------------------------
+void switchPage(uint8_t newPage) {
+  if (newPage < 1) newPage = TOTAL_PAGES;
+  if (newPage > TOTAL_PAGES) newPage = 1;
+  currentPage = newPage;
+
+  tft.setFreeFont(nullptr);
+  tft.setTextDatum(TL_DATUM);
+  tft.setTextPadding(0);
+
+  if (currentPage == PAGE_COVER) {
+    drawPageCover_Static();
+    return;
+  }
+  if (currentPage == PAGE_TEAM) {
+    drawPageTeam_Static();
+    return;
+  }
+
+  // Halaman 3 - 7: bersihkan Body (Y: 31..294) lalu render Header, Body, dan Footer
+  tft.fillRect(0, 31, 480, 264, TFT_BLACK);
+  drawHeader();
+
+  if (currentPage == PAGE_GAUGES) {
+    drawPage1_Static();
+  } else if (currentPage == PAGE_J1939) {
+    drawPage2_Static();
+  } else if (currentPage == PAGE_IOT) {
+    drawPage3_Static();
+  } else if (currentPage == PAGE_LIMITS) {
+    drawPage4_Static();
+  } else if (currentPage == PAGE_FAULTS) {
+    drawPage5_Static();
+  }
+
   drawFooter();
 }
 
@@ -1041,7 +1754,7 @@ void handleNavigationButtons() {
     if (now - lastDebounceTimePrev >= DEBOUNCE_COOLDOWN_MS) {
       lastDebounceTimePrev = now;
       uint8_t oldPage = currentPage;
-      uint8_t nextP = (currentPage == 1) ? 3 : (currentPage - 1);
+      uint8_t nextP = (currentPage == 1) ? TOTAL_PAGES : (currentPage - 1);
       Serial.printf("[BUTTON] <<< PREV (GPIO 14 / Bit 0) DITEKAN! Pindah: Hal %d -> Hal %d\n", oldPage, nextP);
       switchPage(nextP);
     }
@@ -1055,24 +1768,39 @@ void handleNavigationButtons() {
       lastDebounceTimeOk = now;
       Serial.printf("[BUTTON] [●] OK (GPIO 32 / Bit 1) DITEKAN di Halaman %d!\n", currentPage);
 
-      if (currentPage == 1) {
+      if (currentPage == PAGE_GAUGES) {
         // Toggle Mute Buzzer
         buzzerMuted = !buzzerMuted;
-        Serial.printf("         >> AKSI HAL 1: Status Buzzer diubah menjadi -> %s\n",
-                      buzzerMuted ? "MUTED (Hening)" : "AKTIF (Normal)");
+        Serial.printf("         >> AKSI HAL %d: Status Buzzer diubah menjadi -> %s\n",
+                      currentPage, buzzerMuted ? "MUTED (Hening)" : "AKTIF (Normal)");
         drawFooter();
-      } else if (currentPage == 2) {
+      } else if (currentPage == PAGE_J1939) {
         // Reset Total RX Frames Counter
         totalCanFrames = 0;
         totalCanErrors = 0;
-        Serial.println("         >> AKSI HAL 2: Counter Total Frame J1939 berhasil di-reset ke 0!");
+        Serial.println("         >> AKSI HAL 4: Counter Total Frame J1939 berhasil di-reset ke 0!");
         updatePage2_Dynamic();
-      } else if (currentPage == 3) {
+      } else if (currentPage == PAGE_IOT) {
         // Force Refresh Status IoT ke Node 3 via J1939 Request PGN 0xFF00
-        Serial.println("         >> AKSI HAL 3: Refresh status Node 3 / IoT Cloud (Request PGN 0xFF00) dipicu!");
+        Serial.println("         >> AKSI HAL 5: Refresh status Node 3 / IoT Cloud (Request PGN 0xFF00) dipicu!");
         requestJ1939PGN(PGN_GW_STAT);
         lastRequestTime = now;
         updatePage3_Dynamic();
+      } else if (currentPage == PAGE_FAULTS) {
+        uint8_t activeParams[6] = {0};
+        uint8_t activeStates[6] = {0};
+        uint8_t activeCount = collectActiveFaults(activeParams, activeStates);
+        if (activeCount >= 2) {
+          selectedFaultSlot = (selectedFaultSlot + 1) % activeCount;
+          Serial.printf("         >> AKSI HAL 7: Ganti fokus fault ke slot %u/%u (%s)\n",
+                        (unsigned)(selectedFaultSlot + 1), (unsigned)activeCount,
+                        FAULT_SPECS[activeParams[selectedFaultSlot]].spnCode);
+          updatePage5_Dynamic(false);
+        } else if (activeCount == 0) {
+          previewSpnIdx = (previewSpnIdx < 5) ? (previewSpnIdx + 1) : -1;
+          Serial.printf("         >> AKSI HAL 7: Mode preview SPN -> %d\n", (int)previewSpnIdx);
+          updatePage5_Dynamic(false);
+        }
       }
     }
   }
@@ -1084,7 +1812,7 @@ void handleNavigationButtons() {
     if (now - lastDebounceTimeNext >= DEBOUNCE_COOLDOWN_MS) {
       lastDebounceTimeNext = now;
       uint8_t oldPage = currentPage;
-      uint8_t nextP = (currentPage % 3) + 1;
+      uint8_t nextP = (currentPage % TOTAL_PAGES) + 1;
       Serial.printf("[BUTTON] >>> NEXT (GPIO 27 / Bit 2) DITEKAN! Pindah: Hal %d -> Hal %d\n", oldPage, nextP);
       switchPage(nextP);
     }
@@ -1123,10 +1851,8 @@ void setup() {
   tft.setRotation(1); // Orientasi Landscape (480 x 320)
   showLoadingIntroScreen();
 
-  // Tampilkan Halaman 1 secara default
-  drawHeader();
-  drawPage1_Static();
-  drawFooter();
+  // Tampilkan Halaman 1 (Cover TPPAB SV UGM) setelah booting
+  switchPage(PAGE_COVER);
 
   // Reset driver TWAI setelah intro agar sinkron instan dengan Node 1
   resetTWAI();
@@ -1137,11 +1863,11 @@ void setup() {
   Serial.println("  ESP32 NODE 2: DISPLAY HUB & INSTRUMENT CLUSTER");
   Serial.println("  STANDAR PROTOKOL: SAE J1939 (250/500 kbps, EXT-ID)");
   Serial.println("=======================================================");
-  Serial.println("[SETUP] Tombol Navigasi Terkonfigurasi:");
-  Serial.println("        - Bit 0 -> GPIO 14 (PREV Page: 3 <- 2 <- 1 <- 3)");
-  Serial.println("        - Bit 1 -> GPIO 32 (OK / ACTION: Mute / Reset / Refresh)");
-  Serial.println("        - Bit 2 -> GPIO 27 (NEXT Page: 1 -> 2 -> 3 -> 1)");
-  Serial.println("[SETUP] Status Layar: Halaman 1 Aktif (Cluster Gauges).");
+  Serial.println("[SETUP] Tombol Navigasi Terkonfigurasi (7 Halaman):");
+  Serial.println("        - Bit 0 -> GPIO 14 (PREV Page: 7 <- 6 <- 5 <- 4 <- 3 <- 2 <- 1 <- 7)");
+  Serial.println("        - Bit 1 -> GPIO 32 (OK / ACTION: Mute / Reset / Refresh / Fault)");
+  Serial.println("        - Bit 2 -> GPIO 27 (NEXT Page: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 1)");
+  Serial.println("[SETUP] Status Layar: Halaman 1 Aktif (Cover TPPAB SV UGM).");
   Serial.println("=======================================================\n");
 }
 
@@ -1349,10 +2075,11 @@ void loop() {
     }
   }
 
-  // 7. RE-RENDER TAMPILAN DINAMIS SESUAI HALAMAN AKTIF
-  if (currentPage == 1) {
-    if (now - lastSmoothStep >= 18) {
-      lastSmoothStep = now;
+  // 7. UPDATE STATE TELEMETRI KONTINU & RE-RENDER TAMPILAN DINAMIS SESUAI HALAMAN AKTIF
+  if (now - lastSmoothStep >= 18) {
+    lastSmoothStep = now;
+    updateTelemetryStates();
+    if (currentPage == PAGE_GAUGES) {
       updateSmoothDisplay();
       drawAlertIcon(0, current_rpm_state, blinkChanged);
       drawAlertIcon(1, current_load_state, blinkChanged);
@@ -1360,23 +2087,30 @@ void loop() {
       drawAlertIcon(3, current_map_state, blinkChanged);
       drawAlertIcon(4, current_speed_state, blinkChanged);
       drawAlertIcon(5, current_volt_state, blinkChanged);
-    } else if (blinkChanged) {
-      drawAlertIcon(0, current_rpm_state, true);
-      drawAlertIcon(1, current_load_state, true);
-      drawAlertIcon(2, current_eng_state, true);
-      drawAlertIcon(3, current_map_state, true);
-      drawAlertIcon(4, current_speed_state, true);
-      drawAlertIcon(5, current_volt_state, true);
     }
-  } else if (currentPage == 2) {
-    if (now - lastSmoothStep >= 80) { // Refresh tabel tiap 80 ms
-      lastSmoothStep = now;
+  } else if (blinkChanged && currentPage == PAGE_GAUGES) {
+    drawAlertIcon(0, current_rpm_state, true);
+    drawAlertIcon(1, current_load_state, true);
+    drawAlertIcon(2, current_eng_state, true);
+    drawAlertIcon(3, current_map_state, true);
+    drawAlertIcon(4, current_speed_state, true);
+    drawAlertIcon(5, current_volt_state, true);
+  }
+
+  if (currentPage == PAGE_J1939) {
+    if (now - lastPageRenderStep >= 80) { // Refresh tabel tiap 80 ms
+      lastPageRenderStep = now;
       updatePage2_Dynamic();
     }
-  } else if (currentPage == 3) {
-    if (now - lastSmoothStep >= 250) { // Refresh info IoT tiap 250 ms
-      lastSmoothStep = now;
+  } else if (currentPage == PAGE_IOT) {
+    if (now - lastPageRenderStep >= 250) { // Refresh info IoT tiap 250 ms
+      lastPageRenderStep = now;
       updatePage3_Dynamic();
+    }
+  } else if (currentPage == PAGE_FAULTS) {
+    if (now - lastPageRenderStep >= 100) { // Refresh fault monitor tiap 100 ms (berbasis perubahan)
+      lastPageRenderStep = now;
+      updatePage5_Dynamic(false);
     }
   }
 

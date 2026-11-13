@@ -1,4 +1,5 @@
 // Batas aman tiap parameter. Dipakai bersama oleh gauge, banner, dan tabel riwayat
+// Batas aman tiap parameter. Dipakai bersama oleh gauge, banner, dan tabel riwayat
 // supaya status dan lingkaran batas warna kuning/merah selalu sinkron.
 
 export type ParamKey = "rpm" | "temp" | "load" | "map" | "spd" | "volt";
