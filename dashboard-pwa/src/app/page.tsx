@@ -35,7 +35,7 @@ import {
   Trash2,
   Volume2,
   VolumeX,
-  Menu,
+  ChevronRight,
 } from "lucide-react";
 
 interface TelemetryState {
@@ -658,15 +658,15 @@ export default function DashboardPage() {
       {/* ─── Header ─── */}
       <header className="glass-elevated shrink-0 px-3 py-2 sm:px-6 sm:py-3 landscape:py-1.5 landscape:px-4 flex flex-wrap items-center justify-between gap-2 sm:gap-3 z-20">
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Tombol Buka Side Menu */}
+          {/* Tombol Buka Side Menu (Simbol '>') */}
           <button
             type="button"
             onClick={() => setSideMenuOpen(true)}
-            className="p-1.5 sm:p-2 rounded-lg glass-subtle hover:bg-slate-500/10 active:scale-95 transition-all text-slate-800 dark:text-slate-100 flex items-center justify-center min-w-[38px] min-h-[38px] cursor-pointer"
+            className="p-1.5 sm:p-2 rounded-lg glass-subtle hover:bg-slate-500/10 active:scale-95 transition-all text-cat-yellow flex items-center justify-center min-w-[38px] min-h-[38px] cursor-pointer"
             aria-label="Buka Menu Samping"
             title="Menu Samping"
           >
-            <Menu className="w-5 h-5 text-cat-yellow" />
+            <ChevronRight className="w-5 h-5 text-cat-yellow" />
           </button>
 
           {/* Logo CAT di sebelah kiri tulisan Wheel Loader (No Background & Tanpa Garis Kuning) */}

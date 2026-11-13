@@ -145,10 +145,10 @@ export default function LoginPage() {
                   setUsername(e.target.value);
                   if (usernameError) setUsernameError("");
                 }}
-                placeholder="Masukkan username Anda"
+                placeholder="Masukkan username"
                 className={`w-full glass-input pl-10 pr-4 py-2.5 text-sm font-medium transition-all ${usernameError
-                    ? "border-rose-500 ring-2 ring-rose-500/20 bg-rose-500/[0.03]"
-                    : ""
+                  ? "border-rose-500 ring-2 ring-rose-500/20 bg-rose-500/[0.03]"
+                  : ""
                   }`}
               />
             </div>
@@ -185,10 +185,10 @@ export default function LoginPage() {
                   setPassword(e.target.value);
                   if (passwordError) setPasswordError("");
                 }}
-                placeholder="Masukkan password Anda"
+                placeholder="Masukkan password"
                 className={`w-full glass-input pl-10 pr-11 py-2.5 text-sm font-medium transition-all ${passwordError
-                    ? "border-rose-500 ring-2 ring-rose-500/20 bg-rose-500/[0.03]"
-                    : ""
+                  ? "border-rose-500 ring-2 ring-rose-500/20 bg-rose-500/[0.03]"
+                  : ""
                   }`}
               />
               <button

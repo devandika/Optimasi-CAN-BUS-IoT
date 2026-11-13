@@ -16,7 +16,7 @@ import {
   Trash2,
   Pencil,
   RotateCcw,
-  Menu,
+  ChevronRight,
   Sun,
   Moon,
   ArrowLeft,
@@ -310,11 +310,11 @@ export default function UsersManagementPage() {
           <button
             type="button"
             onClick={() => setSideMenuOpen(true)}
-            className="p-2 rounded-lg glass-subtle hover:bg-white/10 active:scale-95 transition-all text-slate-800 dark:text-slate-100 flex items-center justify-center min-w-[40px] min-h-[40px]"
+            className="p-2 rounded-lg glass-subtle hover:bg-white/10 active:scale-95 transition-all text-cat-yellow flex items-center justify-center min-w-[40px] min-h-[40px] cursor-pointer"
             aria-label="Buka Menu Samping"
             title="Menu Samping"
           >
-            <Menu className="w-5 h-5 text-cat-yellow" />
+            <ChevronRight className="w-5 h-5 text-cat-yellow" />
           </button>
 
           {/* Logo CAT (No Background & Tanpa Garis Kuning) */}
