@@ -8,17 +8,23 @@ export interface AuthUser {
   role: "Admin" | "User";
 }
 
+export interface AuthResult {
+  success: boolean;
+  message: string;
+  field?: string;
+}
+
 interface AuthContextType {
   user: AuthUser | null;
   token: string | null;
   isLoading: boolean;
   isAdmin: boolean;
-  login: (username: string, password: string) => Promise<{ success: boolean; message: string }>;
+  login: (username: string, password: string) => Promise<AuthResult>;
   register: (
     username: string,
     password: string,
     confirmPassword?: string
-  ) => Promise<{ success: boolean; message: string }>;
+  ) => Promise<AuthResult>;
   logout: () => void;
   refreshUser: () => void;
 }
@@ -51,7 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(
-    async (username: string, password: string): Promise<{ success: boolean; message: string }> => {
+    async (username: string, password: string): Promise<AuthResult> => {
       try {
         const res = await fetch("/api/auth/login", {
           method: "POST",
@@ -71,6 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         return {
           success: false,
+          field: data.field,
           message: data.message || "Gagal masuk. Periksa username dan password Anda.",
         };
       } catch (err: unknown) {
@@ -89,7 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       username: string,
       password: string,
       confirmPassword?: string
-    ): Promise<{ success: boolean; message: string }> => {
+    ): Promise<AuthResult> => {
       try {
         const res = await fetch("/api/auth/register", {
           method: "POST",
@@ -109,6 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         return {
           success: false,
+          field: data.field,
           message: data.message || "Gagal melakukan pendaftaran.",
         };
       } catch (err: unknown) {

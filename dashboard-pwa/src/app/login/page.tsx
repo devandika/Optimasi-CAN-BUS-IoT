@@ -14,7 +14,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+
+  // Error spesifik per field yang muncul tepat di atas kotak isian
+  const [usernameError, setUsernameError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
 
   // Jika sudah terautentikasi, alihkan langsung ke dashboard
   useEffect(() => {
@@ -25,10 +28,23 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMessage("");
+    setUsernameError("");
+    setPasswordError("");
 
-    if (!username.trim() || !password) {
-      setErrorMessage("Username dan password wajib diisi.");
+    let hasClientError = false;
+
+    // Validasi isian kosong langsung di atas masing-masing kotak
+    if (!username.trim()) {
+      setUsernameError("Wajib diisi");
+      hasClientError = true;
+    }
+
+    if (!password) {
+      setPasswordError("Wajib diisi");
+      hasClientError = true;
+    }
+
+    if (hasClientError) {
       return;
     }
 
@@ -38,10 +54,22 @@ export default function LoginPage() {
       if (res.success) {
         router.replace("/");
       } else {
-        setErrorMessage(res.message);
+        // Peringatan kesalahan tepat di atas kotak terkait
+        if (res.field === "username") {
+          setUsernameError(res.message);
+        } else if (res.field === "password") {
+          setPasswordError(res.message);
+        } else {
+          // Fallback cerdas berdasarkan pesan
+          if (res.message.toLowerCase().includes("username")) {
+            setUsernameError(res.message);
+          } else {
+            setPasswordError(res.message);
+          }
+        }
       }
     } catch {
-      setErrorMessage("Terjadi kesalahan jaringan atau server.");
+      setPasswordError("Terjadi kesalahan jaringan atau server.");
     } finally {
       setIsSubmitting(false);
     }
@@ -81,24 +109,26 @@ export default function LoginPage() {
           </h1>
         </div>
 
-        {/* Pesan Kesalahan */}
-        {errorMessage && (
-          <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs sm:text-sm font-medium flex items-center gap-2.5 animate-shake">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{errorMessage}</span>
-          </div>
-        )}
-
-        {/* Form Login */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Form Login (noValidate agar browser tidak memunculkan tooltip balon default) */}
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+          {/* Kotak Isian Username */}
           <div>
-            <label
-              htmlFor="username"
-              className="block text-xs font-semibold mb-1.5"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              Username
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label
+                htmlFor="username"
+                className="block text-xs font-semibold"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Username
+              </label>
+              {/* Peringatan langsung di atas kotak isian username */}
+              {usernameError && (
+                <span className="text-xs font-bold text-rose-500 animate-shake flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  {usernameError}
+                </span>
+              )}
+            </div>
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
                 <User className="w-4 h-4" />
@@ -108,22 +138,38 @@ export default function LoginPage() {
                 type="text"
                 autoComplete="username"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => {
+                  setUsername(e.target.value);
+                  if (usernameError) setUsernameError("");
+                }}
                 placeholder="Masukkan username Anda"
-                className="w-full glass-input pl-10 pr-4 py-2.5 text-sm font-medium"
-                required
+                className={`w-full glass-input pl-10 pr-4 py-2.5 text-sm font-medium transition-all ${
+                  usernameError
+                    ? "border-rose-500 ring-2 ring-rose-500/20 bg-rose-500/[0.03]"
+                    : ""
+                }`}
               />
             </div>
           </div>
 
+          {/* Kotak Isian Password */}
           <div>
-            <label
-              htmlFor="password"
-              className="block text-xs font-semibold mb-1.5"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              Password
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label
+                htmlFor="password"
+                className="block text-xs font-semibold"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Password
+              </label>
+              {/* Peringatan langsung di atas kotak isian password */}
+              {passwordError && (
+                <span className="text-xs font-bold text-rose-500 animate-shake flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  {passwordError}
+                </span>
+              )}
+            </div>
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
                 <Lock className="w-4 h-4" />
@@ -133,10 +179,16 @@ export default function LoginPage() {
                 type={showPassword ? "text" : "password"}
                 autoComplete="current-password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (passwordError) setPasswordError("");
+                }}
                 placeholder="Masukkan password Anda"
-                className="w-full glass-input pl-10 pr-11 py-2.5 text-sm font-medium"
-                required
+                className={`w-full glass-input pl-10 pr-11 py-2.5 text-sm font-medium transition-all ${
+                  passwordError
+                    ? "border-rose-500 ring-2 ring-rose-500/20 bg-rose-500/[0.03]"
+                    : ""
+                }`}
               />
               <button
                 type="button"
@@ -161,7 +213,7 @@ export default function LoginPage() {
               </>
             ) : (
               <>
-                <span>Login</span>
+                <span>Masuk ke Dashboard</span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}

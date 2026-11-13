@@ -16,7 +16,11 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+
+  // Error spesifik per field langsung di atas kotak isian
+  const [usernameError, setUsernameError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [confirmError, setConfirmError] = useState("");
 
   // Jika sudah login, redirect ke dashboard
   useEffect(() => {
@@ -27,36 +31,56 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMessage("");
+    setUsernameError("");
+    setPasswordError("");
+    setConfirmError("");
 
+    let hasClientError = false;
     const cleanUser = username.trim();
-    if (!cleanUser || !password || !confirmPassword) {
-      setErrorMessage("Semua kolom formulir pendaftaran wajib diisi.");
+
+    // Validasi isian kosong langsung di atas kotak masing-masing
+    if (!cleanUser) {
+      setUsernameError("Wajib diisi");
+      hasClientError = true;
+    }
+
+    if (!password) {
+      setPasswordError("Wajib diisi");
+      hasClientError = true;
+    }
+
+    if (!confirmPassword) {
+      setConfirmError("Wajib diisi");
+      hasClientError = true;
+    }
+
+    if (hasClientError) {
       return;
     }
 
+    // Validasi aturan input
     if (cleanUser.length < 3 || cleanUser.length > 30) {
-      setErrorMessage("Username harus antara 3 hingga 30 karakter.");
+      setUsernameError("Username harus 3–30 karakter");
       return;
     }
 
     if (!/^[a-zA-Z0-9_]+$/.test(cleanUser)) {
-      setErrorMessage("Username hanya boleh mengandung huruf, angka, dan underscore (_).");
+      setUsernameError("Hanya boleh huruf, angka, underscore (_)");
       return;
     }
 
     if (cleanUser.toLowerCase() === "admin") {
-      setErrorMessage("Username 'admin' telah dicadangkan untuk Super Admin.");
+      setUsernameError("Username 'admin' sudah digunakan");
       return;
     }
 
     if (password.length < 6) {
-      setErrorMessage("Password minimal 6 karakter.");
+      setPasswordError("Minimal 6 karakter");
       return;
     }
 
     if (password !== confirmPassword) {
-      setErrorMessage("Konfirmasi password tidak cocok.");
+      setConfirmError("Konfirmasi password tidak cocok");
       return;
     }
 
@@ -66,10 +90,23 @@ export default function RegisterPage() {
       if (res.success) {
         router.replace("/");
       } else {
-        setErrorMessage(res.message);
+        if (res.field === "username") {
+          setUsernameError(res.message);
+        } else if (res.field === "password") {
+          setPasswordError(res.message);
+        } else if (res.field === "confirmPassword") {
+          setConfirmError(res.message);
+        } else {
+          // Fallback
+          if (res.message.toLowerCase().includes("username")) {
+            setUsernameError(res.message);
+          } else {
+            setPasswordError(res.message);
+          }
+        }
       }
     } catch {
-      setErrorMessage("Terjadi kesalahan jaringan atau server saat mendaftar.");
+      setPasswordError("Terjadi kesalahan jaringan atau server.");
     } finally {
       setIsSubmitting(false);
     }
@@ -109,24 +146,25 @@ export default function RegisterPage() {
           </h1>
         </div>
 
-        {/* Pesan Kesalahan */}
-        {errorMessage && (
-          <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs sm:text-sm font-medium flex items-center gap-2.5 animate-shake">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{errorMessage}</span>
-          </div>
-        )}
-
-        {/* Form Registrasi */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Form Registrasi (noValidate) */}
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+          {/* Kotak Isian Username */}
           <div>
-            <label
-              htmlFor="reg-username"
-              className="block text-xs font-semibold mb-1.5"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              Username
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label
+                htmlFor="reg-username"
+                className="block text-xs font-semibold"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Username
+              </label>
+              {usernameError && (
+                <span className="text-xs font-bold text-rose-500 animate-shake flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  {usernameError}
+                </span>
+              )}
+            </div>
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
                 <User className="w-4 h-4" />
@@ -136,22 +174,37 @@ export default function RegisterPage() {
                 type="text"
                 autoComplete="username"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => {
+                  setUsername(e.target.value);
+                  if (usernameError) setUsernameError("");
+                }}
                 placeholder="Contoh: operator1"
-                className="w-full glass-input pl-10 pr-4 py-2.5 text-sm font-medium"
-                required
+                className={`w-full glass-input pl-10 pr-4 py-2.5 text-sm font-medium transition-all ${
+                  usernameError
+                    ? "border-rose-500 ring-2 ring-rose-500/20 bg-rose-500/[0.03]"
+                    : ""
+                }`}
               />
             </div>
           </div>
 
+          {/* Kotak Isian Password */}
           <div>
-            <label
-              htmlFor="reg-password"
-              className="block text-xs font-semibold mb-1.5"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              Password
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label
+                htmlFor="reg-password"
+                className="block text-xs font-semibold"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Password
+              </label>
+              {passwordError && (
+                <span className="text-xs font-bold text-rose-500 animate-shake flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  {passwordError}
+                </span>
+              )}
+            </div>
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
                 <Lock className="w-4 h-4" />
@@ -161,10 +214,16 @@ export default function RegisterPage() {
                 type={showPassword ? "text" : "password"}
                 autoComplete="new-password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (passwordError) setPasswordError("");
+                }}
                 placeholder="Minimal 6 karakter"
-                className="w-full glass-input pl-10 pr-11 py-2.5 text-sm font-medium"
-                required
+                className={`w-full glass-input pl-10 pr-11 py-2.5 text-sm font-medium transition-all ${
+                  passwordError
+                    ? "border-rose-500 ring-2 ring-rose-500/20 bg-rose-500/[0.03]"
+                    : ""
+                }`}
               />
               <button
                 type="button"
@@ -177,14 +236,23 @@ export default function RegisterPage() {
             </div>
           </div>
 
+          {/* Kotak Isian Konfirmasi Password */}
           <div>
-            <label
-              htmlFor="reg-confirm-password"
-              className="block text-xs font-semibold mb-1.5"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              Konfirmasi Password
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label
+                htmlFor="reg-confirm-password"
+                className="block text-xs font-semibold"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Konfirmasi Password
+              </label>
+              {confirmError && (
+                <span className="text-xs font-bold text-rose-500 animate-shake flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  {confirmError}
+                </span>
+              )}
+            </div>
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
                 <Lock className="w-4 h-4" />
@@ -194,10 +262,16 @@ export default function RegisterPage() {
                 type={showConfirm ? "text" : "password"}
                 autoComplete="new-password"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  if (confirmError) setConfirmError("");
+                }}
                 placeholder="Ulangi password di atas"
-                className="w-full glass-input pl-10 pr-11 py-2.5 text-sm font-medium"
-                required
+                className={`w-full glass-input pl-10 pr-11 py-2.5 text-sm font-medium transition-all ${
+                  confirmError
+                    ? "border-rose-500 ring-2 ring-rose-500/20 bg-rose-500/[0.03]"
+                    : ""
+                }`}
               />
               <button
                 type="button"

@@ -12,19 +12,33 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { username, password, confirmPassword } = body;
 
-    if (!username || !password) {
+    const trimmedUsername = String(username || "").trim();
+    const cleanUsername = trimmedUsername.toLowerCase();
+
+    if (!trimmedUsername) {
       return NextResponse.json(
-        { success: false, message: "Username dan Password wajib diisi." },
+        { success: false, field: "username", message: "Wajib diisi" },
         { status: 400 }
       );
     }
 
-    const trimmedUsername = String(username).trim();
-    const cleanUsername = trimmedUsername.toLowerCase();
+    if (!password) {
+      return NextResponse.json(
+        { success: false, field: "password", message: "Wajib diisi" },
+        { status: 400 }
+      );
+    }
+
+    if (confirmPassword !== undefined && !confirmPassword) {
+      return NextResponse.json(
+        { success: false, field: "confirmPassword", message: "Wajib diisi" },
+        { status: 400 }
+      );
+    }
 
     if (trimmedUsername.length < 3 || trimmedUsername.length > 30) {
       return NextResponse.json(
-        { success: false, message: "Username harus antara 3 hingga 30 karakter." },
+        { success: false, field: "username", message: "Username harus 3–30 karakter." },
         { status: 400 }
       );
     }
@@ -34,7 +48,8 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           success: false,
-          message: "Username hanya boleh mengandung huruf, angka, dan underscore (_).",
+          field: "username",
+          message: "Hanya boleh huruf, angka, dan underscore (_).",
         },
         { status: 400 }
       );
@@ -42,21 +57,21 @@ export async function POST(request: Request) {
 
     if (cleanUsername === "admin") {
       return NextResponse.json(
-        { success: false, message: "Username 'admin' sudah digunakan sebagai Super Admin." },
+        { success: false, field: "username", message: "Username 'admin' sudah digunakan." },
         { status: 400 }
       );
     }
 
     if (String(password).length < 6) {
       return NextResponse.json(
-        { success: false, message: "Password minimal 6 karakter." },
+        { success: false, field: "password", message: "Password minimal 6 karakter." },
         { status: 400 }
       );
     }
 
     if (confirmPassword !== undefined && password !== confirmPassword) {
       return NextResponse.json(
-        { success: false, message: "Konfirmasi password tidak cocok." },
+        { success: false, field: "confirmPassword", message: "Konfirmasi password tidak cocok." },
         { status: 400 }
       );
     }
@@ -80,7 +95,7 @@ export async function POST(request: Request) {
 
     if (exists) {
       return NextResponse.json(
-        { success: false, message: "Username sudah digunakan. Silakan pilih username lain." },
+        { success: false, field: "username", message: "Username sudah digunakan." },
         { status: 400 }
       );
     }
@@ -132,4 +147,3 @@ export async function POST(request: Request) {
     );
   }
 }
-
