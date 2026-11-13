@@ -61,6 +61,20 @@ export async function ensureDefaultAdminExists() {
         console.log("[ensureDefaultAdminExists] Akun admin berhasil dibuat:", data.user?.id);
       }
     }
+
+    // Pastikan admin juga tercatat di tabel public.users jika tabel sudah dibuat
+    try {
+      await supabaseAdmin.from("users").upsert(
+        {
+          username: ADMIN_USERNAME,
+          role: "Admin",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "username" }
+      );
+    } catch {
+      // Abaikan jika tabel public.users belum di-create di Supabase
+    }
   } catch (err: unknown) {
     console.error("[ensureDefaultAdminExists] Error inisialisasi:", err);
   }

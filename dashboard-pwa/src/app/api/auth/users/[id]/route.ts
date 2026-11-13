@@ -64,6 +64,13 @@ export async function DELETE(
       );
     }
 
+    // Hapus juga dari tabel public.users
+    try {
+      await supabaseAdmin.from("users").delete().eq("id", userId);
+    } catch {
+      // Abaikan jika tabel belum ada
+    }
+
     return NextResponse.json({
       success: true,
       message: `Pengguna '${username}' berhasil dihapus.`,
@@ -157,6 +164,17 @@ export async function PATCH(
         { success: false, message: updateErr.message || "Gagal memperbarui pengguna." },
         { status: 500 }
       );
+    }
+
+    // Sinkronkan ke tabel public.users
+    try {
+      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (role) {
+        updates.role = String(role).toLowerCase() === "admin" ? "Admin" : "User";
+      }
+      await supabaseAdmin.from("users").update(updates).eq("id", userId);
+    } catch {
+      // Abaikan jika tabel belum ada
     }
 
     return NextResponse.json({

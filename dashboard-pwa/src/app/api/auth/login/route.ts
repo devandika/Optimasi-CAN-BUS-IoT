@@ -88,6 +88,22 @@ export async function POST(request: Request) {
       rawRole.toLowerCase() === "admin" ? "Admin" : "User";
     const actualUsername = data.user.user_metadata?.username || cleanUsername;
 
+    // Sinkronkan ke tabel public.users jika tabel sudah dibuat
+    try {
+      await supabaseAdmin.from("users").upsert(
+        {
+          id: data.user.id,
+          username: actualUsername,
+          role,
+          last_sign_in_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "username" }
+      );
+    } catch {
+      // Abaikan jika tabel public.users belum di-create
+    }
+
     return NextResponse.json({
       success: true,
       message: "Login berhasil",

@@ -8,7 +8,6 @@ import {
   KeyRound,
   LogOut,
   ChevronLeft,
-  Shield,
   User,
   Radio,
 } from "lucide-react";
@@ -135,53 +134,28 @@ export function SideMenu({
           </button>
         </div>
 
-        {/* Profil Akun Aktif (Executive Industrial Badge) */}
+        {/* Profil Akun Sederhana & Profesional */}
         <div className="p-3.5 sm:p-4 border-b border-[var(--glass-border)]">
-          <div className="relative overflow-hidden rounded-2xl p-3.5 border border-slate-200/80 dark:border-slate-800 bg-gradient-to-br from-slate-500/[0.04] via-slate-500/[0.02] to-amber-500/[0.06] dark:from-slate-800/60 dark:via-slate-800/30 dark:to-amber-500/10 shadow-sm">
-            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-cat-yellow via-amber-400 to-transparent opacity-80" />
-            <div className="flex items-center gap-3">
-              <div className="relative shrink-0">
-                <div
-                  className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold text-sm shadow-sm transition-transform ${
-                    isAdmin
-                      ? "bg-cat-yellow text-slate-950 ring-2 ring-cat-yellow/30"
-                      : "bg-emerald-600 text-white ring-2 ring-emerald-500/30"
-                  }`}
-                >
-                  {isAdmin ? <Shield className="w-5 h-5" /> : <User className="w-5 h-5" />}
-                </div>
-                <span
-                  className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full shadow-xs"
-                  title="Sesi Aktif"
-                />
+          <div className="flex items-center gap-3 px-3.5 py-3 rounded-xl bg-slate-500/[0.05] dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800/70">
+            <div className="w-10 h-10 rounded-lg bg-slate-200/80 dark:bg-slate-700/60 flex items-center justify-center shrink-0">
+              {isAdmin ? (
+                <KeyRound className="w-5 h-5 text-cat-yellow" />
+              ) : (
+                <User className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div
+                className="text-sm font-bold truncate leading-tight"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {user?.username || "Pengguna"}
               </div>
-
-              <div className="flex-1 min-w-0">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Operator Aktif
-                </span>
-                <div
-                  className="font-display text-sm sm:text-base font-bold truncate leading-tight mt-0.5"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  {user?.username || "Pengguna"}
-                </div>
-                <div className="mt-1 flex items-center gap-1.5">
-                  <span
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${
-                      isAdmin
-                        ? "bg-amber-400/20 text-amber-700 dark:text-amber-300 border border-amber-400/30"
-                        : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25"
-                    }`}
-                  >
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        isAdmin ? "bg-amber-500" : "bg-emerald-500"
-                      }`}
-                    />
-                    {isAdmin ? "Super Admin" : "Operator"}
-                  </span>
-                </div>
+              <div
+                className="text-xs font-medium mt-0.5"
+                style={{ color: "var(--text-muted)" }}
+              >
+                {isAdmin ? "Admin" : "User"}
               </div>
             </div>
           </div>

@@ -119,6 +119,22 @@ export async function POST(request: Request) {
       );
     }
 
+    // Sinkronkan akun baru ke tabel public.users jika tabel sudah dibuat
+    try {
+      await supabaseAdmin.from("users").upsert(
+        {
+          id: created.user.id,
+          username: trimmedUsername,
+          role: "User",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "username" }
+      );
+    } catch {
+      // Abaikan jika tabel public.users belum di-create
+    }
+
     // Auto-login untuk mendapatkan sesi
     const supabaseClient = createClient(supabaseUrl, anonKey, {
       auth: { persistSession: false },

@@ -2,11 +2,12 @@
 
 import React, { useState } from "react";
 import { KeyRound, X, Eye, EyeOff, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { useAuth } from "@/lib/authContext";
 
 interface ChangePasswordModalProps {
   isOpen: boolean;
   onClose: () => void;
-  token: string | null;
+  token?: string | null;
 }
 
 export function ChangePasswordModal({
@@ -14,6 +15,7 @@ export function ChangePasswordModal({
   onClose,
   token,
 }: ChangePasswordModalProps) {
+  const { user: authUser, token: authToken } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -64,17 +66,33 @@ export function ChangePasswordModal({
 
     setLoading(true);
     try {
+      const activeToken =
+        token ||
+        authToken ||
+        (typeof window !== "undefined"
+          ? localStorage.getItem("cat950l_auth_token")
+          : "") ||
+        "";
+      const username = authUser?.username || "";
+
       const res = await fetch("/api/auth/change-password", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token || ""}`,
+          Authorization: `Bearer ${activeToken}`,
         },
-        body: JSON.stringify({ currentPassword, newPassword }),
+        body: JSON.stringify({
+          username,
+          currentPassword,
+          newPassword,
+        }),
       });
 
       const data = await res.json();
       if (res.ok && data.success) {
+        if (data.token && typeof window !== "undefined") {
+          localStorage.setItem("cat950l_auth_token", data.token);
+        }
         setSuccessMsg(data.message || "Kata sandi berhasil diubah!");
         setCurrentPassword("");
         setNewPassword("");
@@ -85,7 +103,7 @@ export function ChangePasswordModal({
       } else {
         setErrorMsg(data.message || "Gagal mengubah kata sandi.");
       }
-    } catch (err: unknown) {
+    } catch {
       setErrorMsg("Terjadi kesalahan jaringan atau server.");
     } finally {
       setLoading(false);

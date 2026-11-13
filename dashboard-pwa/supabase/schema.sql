@@ -81,3 +81,36 @@ SELECT * FROM public.telemetry_history
 ORDER BY created_at DESC
 LIMIT 1;
 
+-- 6. TABEL PENGGUNA & ADMIN (USER MANAGEMENT)
+CREATE TABLE IF NOT EXISTS public.users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username VARCHAR(50) UNIQUE NOT NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'User' CHECK (role IN ('Admin', 'User')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    last_sign_in_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_username ON public.users (username);
+CREATE INDEX IF NOT EXISTS idx_users_role ON public.users (role);
+
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow public read access on users" ON public.users;
+CREATE POLICY "Allow public read access on users"
+    ON public.users FOR SELECT
+    TO anon, authenticated
+    USING (true);
+
+DROP POLICY IF EXISTS "Allow service role full access on users" ON public.users;
+CREATE POLICY "Allow service role full access on users"
+    ON public.users FOR ALL
+    TO service_role
+    USING (true);
+
+-- Akun default admin
+INSERT INTO public.users (username, role)
+VALUES ('admin', 'Admin')
+ON CONFLICT (username) DO UPDATE
+SET role = 'Admin', updated_at = now();
+
