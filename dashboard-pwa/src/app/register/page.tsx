@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/authContext";
-import { Eye, EyeOff, Lock, User, AlertCircle, Loader2, ArrowRight, UserPlus } from "lucide-react";
+import { Eye, EyeOff, Lock, User, AlertCircle, Loader2, ArrowRight } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -56,7 +56,7 @@ export default function RegisterPage() {
     }
 
     if (password !== confirmPassword) {
-      setErrorMessage("Konfirmasi password tidak cocok dengan password yang dimasukkan.");
+      setErrorMessage("Konfirmasi password tidak cocok.");
       return;
     }
 
@@ -76,7 +76,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
+    <div className="min-h-screen w-full flex flex-col items-center justify-center p-4 sm:p-6 relative overflow-hidden">
       {/* ─── Ambient Glow Backdrop ─── */}
       <div
         className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full pointer-events-none opacity-40 blur-3xl"
@@ -86,43 +86,27 @@ export default function RegisterPage() {
         }}
       />
 
-      {/* ─── Kartu Registrasi Glassmorphism ─── */}
-      <div className="w-full max-w-md glass-card p-6 sm:p-8 space-y-6 shadow-2xl relative z-10 border border-[var(--glass-border)] rounded-2xl">
-        {/* Header Branding */}
-        <div className="flex flex-col items-center text-center space-y-2">
-          <div className="flex items-center gap-2.5">
-            <span
-              className="w-1.5 h-7 rounded-sm bg-cat-yellow shrink-0"
-              aria-hidden="true"
-            />
-            <h1
-              className="font-display text-lg sm:text-xl font-bold leading-tight"
-              style={{ color: "var(--text-primary)" }}
-            >
-              Wheel Loader CAT 950L
-            </h1>
-          </div>
-          <p
-            className="text-xs font-medium"
-            style={{ color: "var(--text-muted)" }}
+      {/* ─── Logo CAT di atas kotak ─── */}
+      <div className="mb-4 sm:mb-5 z-10 flex items-center justify-center">
+        <div className="bg-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-2xl shadow-xl border border-slate-200/90 flex items-center justify-center hover:scale-105 transition-all">
+          <img
+            src="/cat-logo.png"
+            alt="Caterpillar CAT Logo"
+            className="h-10 sm:h-12 w-auto object-contain"
+          />
+        </div>
+      </div>
+
+      {/* ─── Kartu Registrasi Glassmorphism (Ukuran presisi sama dengan Login: max-w-[420px]) ─── */}
+      <div className="w-full max-w-[420px] glass-card p-6 sm:p-8 space-y-5 shadow-2xl relative z-10 border border-[var(--glass-border)] rounded-2xl">
+        {/* Di dalam kotak, bagian paling atas HANYA tulisan Daftar */}
+        <div className="text-center pb-2 border-b border-[var(--glass-border)]">
+          <h1
+            className="font-display text-2xl sm:text-3xl font-bold tracking-tight"
+            style={{ color: "var(--text-primary)" }}
           >
-            Sistem Pemantauan Telemetri IoT SAE J1939
-          </p>
-          <div className="pt-2">
-            <h2
-              className="font-display text-base sm:text-lg font-bold flex items-center justify-center gap-2"
-              style={{ color: "var(--text-primary)" }}
-            >
-              <UserPlus className="w-5 h-5 text-cat-yellow" />
-              <span>Buat Akun Pengguna</span>
-            </h2>
-            <p
-              className="text-xs mt-0.5"
-              style={{ color: "var(--text-muted)" }}
-            >
-              Daftar untuk mengakses pemantauan instrumen
-            </p>
-          </div>
+            Daftar
+          </h1>
         </div>
 
         {/* Pesan Kesalahan */}
@@ -153,14 +137,11 @@ export default function RegisterPage() {
                 autoComplete="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Contoh: operator_lapangan"
+                placeholder="Contoh: operator1"
                 className="w-full glass-input pl-10 pr-4 py-2.5 text-sm font-medium"
                 required
               />
             </div>
-            <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
-              3–30 karakter (huruf, angka, atau underscore).
-            </p>
           </div>
 
           <div>
@@ -232,7 +213,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full min-h-[44px] px-5 py-2.5 rounded-xl text-sm font-bold bg-cat-yellow hover:bg-cat-yellowHover text-slate-950 transition-all flex items-center justify-center gap-2 shadow-lg active:scale-98 disabled:opacity-50 mt-2"
+            className="w-full min-h-[44px] px-5 py-2.5 rounded-xl text-sm font-bold bg-cat-yellow hover:bg-cat-yellowHover text-slate-950 transition-all flex items-center justify-center gap-2 shadow-lg active:scale-98 disabled:opacity-50 mt-1"
           >
             {isSubmitting ? (
               <>
@@ -249,7 +230,7 @@ export default function RegisterPage() {
         </form>
 
         {/* Link Kembali ke Login */}
-        <div className="pt-2 border-t border-[var(--glass-border)] text-center space-y-2">
+        <div className="pt-2 border-t border-[var(--glass-border)] text-center">
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
             Sudah punya akun?{" "}
             <Link
@@ -259,13 +240,8 @@ export default function RegisterPage() {
               Masuk di sini
             </Link>
           </p>
-
-          <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-            *Akun yang didaftarkan mandiri otomatis memiliki peran sebagai Pengguna (User).
-          </p>
         </div>
       </div>
     </div>
   );
 }
-

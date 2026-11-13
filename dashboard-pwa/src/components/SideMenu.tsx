@@ -93,8 +93,15 @@ export function SideMenu({
         {/* Header Drawer */}
         <div className="p-4 sm:p-5 border-b border-[var(--glass-border)] flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
+            <div className="bg-white px-2 py-1 rounded-lg shadow-sm border border-slate-200/90 flex items-center justify-center shrink-0">
+              <img
+                src="/cat-logo.png"
+                alt="CAT Logo"
+                className="h-5 w-auto object-contain"
+              />
+            </div>
             <span
-              className="w-1.5 h-7 rounded-sm bg-cat-yellow shrink-0"
+              className="w-1.5 h-6 rounded-sm bg-cat-yellow shrink-0"
               aria-hidden="true"
             />
             <div>

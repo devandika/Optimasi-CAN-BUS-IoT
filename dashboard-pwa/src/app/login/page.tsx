@@ -48,7 +48,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
+    <div className="min-h-screen w-full flex flex-col items-center justify-center p-4 sm:p-6 relative overflow-hidden">
       {/* ─── Ambient Glow Backdrop (Serasi dengan Dashboard) ─── */}
       <div
         className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full pointer-events-none opacity-40 blur-3xl"
@@ -58,42 +58,27 @@ export default function LoginPage() {
         }}
       />
 
-      {/* ─── Kartu Login Glassmorphism ─── */}
-      <div className="w-full max-w-md glass-card p-6 sm:p-8 space-y-6 shadow-2xl relative z-10 border border-[var(--glass-border)] rounded-2xl">
-        {/* Header Branding */}
-        <div className="flex flex-col items-center text-center space-y-2">
-          <div className="flex items-center gap-2.5">
-            <span
-              className="w-1.5 h-7 rounded-sm bg-cat-yellow shrink-0"
-              aria-hidden="true"
-            />
-            <h1
-              className="font-display text-lg sm:text-xl font-bold leading-tight"
-              style={{ color: "var(--text-primary)" }}
-            >
-              Wheel Loader CAT 950L
-            </h1>
-          </div>
-          <p
-            className="text-xs font-medium"
-            style={{ color: "var(--text-muted)" }}
+      {/* ─── Logo CAT di atas kotak ─── */}
+      <div className="mb-4 sm:mb-5 z-10 flex items-center justify-center">
+        <div className="bg-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-2xl shadow-xl border border-slate-200/90 flex items-center justify-center hover:scale-105 transition-all">
+          <img
+            src="/cat-logo.png"
+            alt="Caterpillar CAT Logo"
+            className="h-10 sm:h-12 w-auto object-contain"
+          />
+        </div>
+      </div>
+
+      {/* ─── Kartu Login Glassmorphism (Ukuran presisi max-w-[420px]) ─── */}
+      <div className="w-full max-w-[420px] glass-card p-6 sm:p-8 space-y-5 shadow-2xl relative z-10 border border-[var(--glass-border)] rounded-2xl">
+        {/* Di dalam kotak, bagian paling atas HANYA tulisan Login */}
+        <div className="text-center pb-2 border-b border-[var(--glass-border)]">
+          <h1
+            className="font-display text-2xl sm:text-3xl font-bold tracking-tight"
+            style={{ color: "var(--text-primary)" }}
           >
-            Sistem Pemantauan Telemetri IoT SAE J1939
-          </p>
-          <div className="pt-2">
-            <h2
-              className="font-display text-base sm:text-lg font-bold"
-              style={{ color: "var(--text-primary)" }}
-            >
-              Masuk ke Akun Anda
-            </h2>
-            <p
-              className="text-xs mt-0.5"
-              style={{ color: "var(--text-muted)" }}
-            >
-              Gunakan akun Administrator atau Pengguna
-            </p>
-          </div>
+            Login
+          </h1>
         </div>
 
         {/* Pesan Kesalahan */}
@@ -167,7 +152,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full min-h-[44px] px-5 py-2.5 rounded-xl text-sm font-bold bg-cat-yellow hover:bg-cat-yellowHover text-slate-950 transition-all flex items-center justify-center gap-2 shadow-lg active:scale-98 disabled:opacity-50 mt-2"
+            className="w-full min-h-[44px] px-5 py-2.5 rounded-xl text-sm font-bold bg-cat-yellow hover:bg-cat-yellowHover text-slate-950 transition-all flex items-center justify-center gap-2 shadow-lg active:scale-98 disabled:opacity-50 mt-1"
           >
             {isSubmitting ? (
               <>
@@ -176,7 +161,7 @@ export default function LoginPage() {
               </>
             ) : (
               <>
-                <span>Masuk ke Dashboard</span>
+                <span>Login</span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
@@ -184,7 +169,7 @@ export default function LoginPage() {
         </form>
 
         {/* Link Daftar */}
-        <div className="pt-2 border-t border-[var(--glass-border)] text-center space-y-3">
+        <div className="pt-2 border-t border-[var(--glass-border)] text-center">
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
             Belum punya akun?{" "}
             <Link
@@ -194,19 +179,8 @@ export default function LoginPage() {
               Daftar di sini
             </Link>
           </p>
-
-          {/* Quick Credential Hint */}
-          <div className="glass-subtle p-2.5 rounded-lg border border-[var(--glass-outline)] text-[11px] space-y-0.5">
-            <span className="font-semibold block" style={{ color: "var(--text-secondary)" }}>
-              Kredensial Default Admin:
-            </span>
-            <code className="text-cat-yellow font-mono font-semibold">
-              admin / admin123
-            </code>
-          </div>
         </div>
       </div>
     </div>
   );
 }
-

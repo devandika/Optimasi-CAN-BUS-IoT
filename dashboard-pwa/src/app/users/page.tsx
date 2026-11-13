@@ -306,7 +306,7 @@ export default function UsersManagementPage() {
     <div className="min-h-screen w-full flex flex-col bg-canvas">
       {/* ─── Top Header Bar ─── */}
       <header className="glass-elevated shrink-0 px-4 sm:px-6 py-3 flex items-center justify-between gap-3 z-20 border-b border-[var(--glass-border)]">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3">
           <button
             type="button"
             onClick={() => setSideMenuOpen(true)}
@@ -317,7 +317,16 @@ export default function UsersManagementPage() {
             <Menu className="w-5 h-5 text-cat-yellow" />
           </button>
 
-          <span className="w-1.5 h-7 rounded-sm bg-cat-yellow shrink-0" aria-hidden="true" />
+          {/* Logo CAT */}
+          <div className="bg-white px-2 py-1 rounded-lg shadow-sm border border-slate-200/90 flex items-center justify-center shrink-0">
+            <img
+              src="/cat-logo.png"
+              alt="CAT Logo"
+              className="h-5 sm:h-6 w-auto object-contain"
+            />
+          </div>
+
+          <span className="w-1.5 h-6 sm:h-7 rounded-sm bg-cat-yellow shrink-0" aria-hidden="true" />
           <div>
             <h1
               className="font-display text-sm sm:text-base lg:text-lg font-bold leading-tight"
